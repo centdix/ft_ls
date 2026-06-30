@@ -18,7 +18,8 @@ LIBFT		= $(LIBFT_DIR)/libft.a
 INC			= -Iincludes -I$(LIBFT_DIR)
 
 SRC_DIR		= src
-SRCS		= $(SRC_DIR)/main.c
+SRCS		= $(SRC_DIR)/main.c \
+			  $(SRC_DIR)/utils.c
 OBJS		= $(SRCS:.c=.o)
 
 HEADER		= includes/ft_ls.h

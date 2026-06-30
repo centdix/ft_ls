@@ -1,31 +1,38 @@
-/* ************************************************************************** */
-/*                                                                            */
-/*   main.c — point d'entree                                                  */
-/*                                                                            */
-/*   Squelette volontairement minimal : il compile, c'est tout.               */
-/*   A toi d'ecrire la logique (parsing des flags, lecture des dossiers,       */
-/*   tri, affichage, recursion, gestion d'erreurs).                            */
-/*                                                                            */
-/*   Pistes (cf. GUIDE_ft_ls.md) :                                            */
-/*     1. parser argv -> remplir un t_opts + collecter les chemins            */
-/*     2. separer fichiers et dossiers, traiter chaque cible                  */
-/*     3. pour un dossier : readdir -> lstat chaque entree -> trier -> afficher*/
-/*     4. si -R : redescendre dans chaque sous-dossier                        */
-/*                                                                            */
-/* ************************************************************************** */
+/* main.c — point d'entree : parse argv, signale les erreurs d'acces, trie les
+   operandes, puis affiche les fichiers avant les dossiers (cf. utils.c). */
 
 #include "ft_ls.h"
 
 int	main(int argc, char **argv)
 {
 	t_opts	opts;
+	t_list	*node;
+	int		printed;
+	int		show_header;
+	int		err;
 
-	opts = (t_opts){0, 0, 0, 0, 0};
-	(void)argc;
-	(void)argv;
-	(void)opts;
+	opts = ft_parse_opts(argc, argv);
+	err = ft_print_access_errors(opts.paths);
+	ft_sort_paths(opts.paths, &opts);
+	printed = 0;
+	show_header = (opts.paths_count > 1 || opts.rec);
+	node = opts.paths;
+	while (node)
+	{
+		t_path	*operand = node->content;
 
-	/* TODO: ton ft_ls commence ici. */
-
-	return (0);
+		if (operand->staterr == 0 && operand->type == PATH_FILE)
+		{
+			ft_printf("%s\n", operand->path);
+			printed = 1;
+		}
+		else if (operand->staterr == 0 && operand->type == PATH_DIR)
+		{
+			if (ft_list_one_dir(operand->path, &opts, show_header, &printed))
+				err = 1;
+		}
+		node = node->next;
+	}
+	ft_lstclear(&opts.paths, ft_free_path);
+	return (err ? 2 : 0);
 }
