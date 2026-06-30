@@ -66,14 +66,18 @@ typedef struct s_opts
 	int		paths_count;
 }	t_opts;
 
-/* --- prototypes : utils.c --- */
+/* --- parse.c : lecture de la ligne de commande --- */
+t_opts	ft_parse_opts(int argc, char **argv);
+void	ft_free_path(void *content);
+
+/* --- sort.c : tri des entrees et des operandes --- */
 int		ft_sort_list(t_list *lst, t_opts *opts);
 void	ft_sort_paths(t_list *paths, t_opts *opts);
-t_opts 	ft_parse_opts(int argc, char **argv);
-t_list 	*ft_extract_entries(DIR *dir, char *path, t_opts *opts);
-int 	ft_print_list(t_list *lst);
-void 	ft_free_file(void *content);
-void	ft_free_path(void *content);
+
+/* --- list.c : listing d'un dossier et erreurs --- */
+t_list	*ft_extract_entries(DIR *dir, char *path, t_opts *opts);
+int		ft_print_list(t_list *lst);
+void	ft_free_file(void *content);
 int		ft_print_access_errors(t_list *paths);
 int		ft_list_one_dir(char *path, t_opts *opts, int header, int *printed);
 

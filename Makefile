@@ -19,7 +19,9 @@ INC			= -Iincludes -I$(LIBFT_DIR)
 
 SRC_DIR		= src
 SRCS		= $(SRC_DIR)/main.c \
-			  $(SRC_DIR)/utils.c
+			  $(SRC_DIR)/parse.c \
+			  $(SRC_DIR)/sort.c \
+			  $(SRC_DIR)/list.c
 OBJS		= $(SRCS:.c=.o)
 
 HEADER		= includes/ft_ls.h
