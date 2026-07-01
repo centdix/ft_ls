@@ -24,6 +24,7 @@
 # include <time.h>       /* time, ctime                            */
 # include <errno.h>      /* errno (messages d'erreur facon ls)     */
 # include <string.h>     /* strerror                               */
+# include <sys/xattr.h>  /* lgetxattr (bonus: marqueur ACL '+')    */
 
 /* Cle de tri active (le sens -r est gere a part, via opts->rev). */
 typedef enum e_sort_by
@@ -53,6 +54,7 @@ typedef struct s_file
 {
 	char		*name;
 	char		*path;
+	char		acl;	/* bonus : '+' (ACL), '.' (contexte), ' ' (aucun) */
 	struct stat	st;
 }	t_file;
 
@@ -84,6 +86,7 @@ typedef struct s_widths
 	int	size;
 	int	major;
 	int	minor;
+	int	aclcol;	/* bonus : 1 si une entree du bloc a un ACL/contexte */
 }	t_widths;
 
 /* --- parse.c : lecture de la ligne de commande --- */

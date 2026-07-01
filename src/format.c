@@ -171,11 +171,29 @@ static void	update_size_width(t_file *f, t_widths *w)
 	free(s);
 }
 
-/* Met a jour les largeurs max a partir d'une entree. */
+/* Bonus : indicateur d'acces etendu facon GNU. '+' si le fichier porte un ACL
+   POSIX (xattr system.posix_acl_access/_default), '.' s'il n'a qu'un contexte
+   de securite (SELinux/SMACK), ' ' sinon. lgetxattr ne suit pas les symlinks
+   (on decrit le lien lui-meme, comme lstat). */
+static char	acl_char(t_file *f)
+{
+	if (lgetxattr(f->path, "system.posix_acl_access", NULL, 0) >= 0
+		|| lgetxattr(f->path, "system.posix_acl_default", NULL, 0) >= 0)
+		return ('+');
+	if (lgetxattr(f->path, "security.selinux", NULL, 0) >= 0
+		|| lgetxattr(f->path, "security.SMACK64", NULL, 0) >= 0)
+		return ('.');
+	return (' ');
+}
+
+/* Met a jour les largeurs max a partir d'une entree (et l'indicateur ACL). */
 static void	update_widths(t_file *f, t_widths *w)
 {
 	char	*s;
 
+	f->acl = acl_char(f);
+	if (f->acl != ' ')
+		w->aclcol = 1;
 	s = nbr_to_str(f->st.st_nlink);
 	if ((int)ft_strlen(s) > w->links)
 		w->links = ft_strlen(s);
@@ -243,7 +261,12 @@ static void	print_long_line(t_file *f, t_widths *w)
 	time_str(f->st.st_mtim.tv_sec, date);
 	owner = owner_name(f->st.st_uid);
 	group = group_name(f->st.st_gid);
-	ft_printf("%s ", perms);
+	ft_printf("%s", perms);
+	/* bonus : indicateur ACL/contexte, uniquement si le bloc en reserve la
+	   colonne (au moins une entree concernee) -> aligne comme GNU. */
+	if (w->aclcol)
+		ft_printf("%c", f->acl);
+	ft_printf(" ");
 	nbr = nbr_to_str(f->st.st_nlink);
 	print_right(nbr, w->links);
 	free(nbr);
@@ -266,7 +289,7 @@ static void	print_long_line(t_file *f, t_widths *w)
    "major, minor" en entier : major + ", " (2 car.) + minor, comme GNU ls. */
 void	ft_calc_widths(t_list *entries, t_widths *w)
 {
-	*w = (t_widths){0, 0, 0, 0, 0, 0};
+	*w = (t_widths){0, 0, 0, 0, 0, 0, 0};
 	while (entries)
 	{
 		update_widths(entries->content, w);

@@ -37,6 +37,7 @@ t_list	*ft_extract_entries(DIR *dir, char *path, int all)
 		}
 		file->name = ft_strdup(entry->d_name);
 		file->path = path_join(path, entry->d_name);
+		file->acl = ' ';
 		/* lstat (pas stat) : on decrit le lien lui-meme, pas sa cible. */
 		lstat(file->path, &file->st);
 		ft_lstadd_back(&entries, ft_lstnew(file));
@@ -101,6 +102,7 @@ static t_list	*collect_operand_files(t_list *operands)
 			{
 				f->name = ft_strdup(op->path);
 				f->path = ft_strdup(op->path);
+				f->acl = ' ';
 				f->st = op->st;
 				ft_lstadd_back(&all, ft_lstnew(f));
 			}
