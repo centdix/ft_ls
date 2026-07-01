@@ -66,10 +66,12 @@ macros `#ifdef __APPLE__` dans `includes/ft_ls.h` :
   (`ft_pick_time`, `pick_nsec`) et `format.c`.
 - **`major`/`minor`** : `<sys/sysmacros.h>` inclus **seulement** hors mac
   (sur mac ils viennent de `<sys/types.h>`).
-- **xattr (bonus ACL)** : macro `X_HAS` → `lgetxattr(4 args)` sous Linux,
-  `getxattr(6 args, XATTR_NOFOLLOW)` sous mac. Sur mac, les xattr POSIX
-  `system.posix_acl_*` n'existent pas → `acl_char` renvoie `' '` (le `+`/`@`
-  du BSD ls repose sur `<sys/acl.h>`, laissé hors périmètre).
+- **xattr / marqueur du 11e champ** : macros `X_HAS` (un xattr précis existe :
+  `lgetxattr` Linux / `getxattr`+`XATTR_NOFOLLOW` mac), `X_LIST` (liste des
+  xattr : `llistxattr` / `listxattr`), et `ACL_CHAR(f)` → `@` si xattr présent
+  sous mac (BSD), `+`/`.` ACL/contexte POSIX sous Linux (GNU). Colonne toujours
+  réservée sur mac via `ACL_COL_ALWAYS`. Le `+` des **ACL** BSD reste hors
+  périmètre (voir §0 « Marqueur du 11e champ »).
 - **Ligne `total`** : macro `TOTAL_BLOCKS` → `st_blocks / 2` (GNU, blocs 1 Ko)
   vs `st_blocks` (BSD/mac, blocs 512 o).
 - **Espacement des colonnes `-l`** : macro `COL_GAP` → 2 espaces owner→group /
@@ -90,16 +92,23 @@ macros `#ifdef __APPLE__` dans `includes/ft_ls.h` :
 - `make` clean (`-Wall -Wextra -Werror`, 0 warning) : `st_*timespec`,
   `getxattr` 6 args + `XATTR_NOFOLLOW`, `major`/`minor` OK.
 - `ls`, `-a`, `-r`, `-t`, `-1`, `-rt`, `-R`, `-aR` : **identiques** au BSD ls.
-- `-l`, `-la`, `-lR` : **identiques** au BSD ls une fois le marqueur `@` retiré
-  (padding parfait après le fix `COL_GAP`).
+- `-l`, `-la`, `-lR` : **strictement identiques** au BSD ls, **marqueur `@`
+  inclus** (`COL_GAP` + colonne ACL toujours réservée + `@` via `listxattr`).
+  Vérifié sur `/bin`, `/usr/bin` (980 entrées), `/usr/lib`, `/etc`,
+  `/System/Library/CoreServices`, fichiers uniques, et `-lR` récursif.
 - **Erreurs** (`nexiste_pas`, `-Z`, `--badopt`, permission refusée) : message
   **et** code retour **identiques** au BSD ls (fix gestion d'erreur OS-conditionnelle).
 
-⚠️ **Limitation restante — marqueur `@`** : sur macOS, quasi tous les fichiers
-portent `com.apple.provenance` (xattr ré-ajouté par l'OS, non supprimable via
-`xattr -c`). Le BSD ls affiche alors `@`, ce qui décale la ligne d'une colonne ;
-`acl_char` ne reconnaît que les ACL POSIX/SELinux → renvoie `' '`. Écart assumé
-hors périmètre (le `@` BSD exigerait `<sys/acl.h>` / `listxattr`).
+### Marqueur du 11e champ en `-l` (`@` / `+`)
+- **`@` (extended attributes)** : **FAIT** sur mac via `listxattr` (macro
+  `X_LIST` + `ACL_CHAR`). La colonne est toujours réservée (`ACL_COL_ALWAYS`),
+  exactement comme le BSD ls. Rend `-l` pixel-perfect sur les fichiers à xattr.
+- **`+` (ACL POSIX)** : **hors périmètre irréductible**. Sur macOS les ACL ne
+  sont PAS exposées par `listxattr`/`getxattr` ; il faut `acl_get_file()` de
+  `<sys/acl.h>`, **absente de la liste de fonctions autorisées** du sujet (qui
+  exempte d'ailleurs explicitement les ACL). Conséquence : les rares entrées à
+  ACL (le home `~`, certains dossiers système) affichent `+` chez BSD et `' '`
+  chez nous. Seul écart résiduel, assumé et défendable à l'oral.
 
 ---
 

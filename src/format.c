@@ -171,20 +171,13 @@ static void	update_size_width(t_file *f, t_widths *w)
 	free(s);
 }
 
-/* Bonus : indicateur d'acces etendu facon GNU. '+' si le fichier porte un ACL
-   POSIX (xattr system.posix_acl_access/_default), '.' s'il n'a qu'un contexte
-   de securite (SELinux/SMACK), ' ' sinon. X_HAS ne suit pas les symlinks (on
-   decrit le lien lui-meme, comme lstat). Sur macOS ces xattr POSIX n'existent
-   pas -> renvoie ' ' (le '+' du BSD ls repose sur une autre API, hors sujet). */
+/* Bonus : indicateur d'acces etendu (11e colonne du -l). La logique differe
+   entre GNU ('+'/'.' via ACL/contexte POSIX) et BSD ('@' des qu'un xattr est
+   present) : elle est isolee derriere la macro ACL_CHAR (cf. ft_ls.h). Ne suit
+   pas les symlinks (on decrit le lien lui-meme, comme lstat). */
 static char	acl_char(t_file *f)
 {
-	if (X_HAS(f->path, "system.posix_acl_access") >= 0
-		|| X_HAS(f->path, "system.posix_acl_default") >= 0)
-		return ('+');
-	if (X_HAS(f->path, "security.selinux") >= 0
-		|| X_HAS(f->path, "security.SMACK64") >= 0)
-		return ('.');
-	return (' ');
+	return (ACL_CHAR(f));
 }
 
 /* Met a jour les largeurs max a partir d'une entree (et l'indicateur ACL). */
@@ -337,6 +330,9 @@ void	ft_print_short_line(t_file *f, t_widths *w, t_opts *opts)
 void	ft_calc_widths(t_list *entries, t_widths *w)
 {
 	*w = (t_widths){0, 0, 0, 0, 0, 0, 0, 0};
+	/* BSD reserve toujours la colonne du marqueur xattr ; GNU seulement si
+	   une entree porte un ACL/contexte (update_widths le detecte). */
+	w->aclcol = ACL_COL_ALWAYS;
 	while (entries)
 	{
 		update_widths(entries->content, w);

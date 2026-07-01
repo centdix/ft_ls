@@ -40,6 +40,9 @@
 #  define TOTAL_BLOCKS(b) (b)
 /* BSD ls : 2 espaces entre les colonnes owner/group/size du -l. */
 #  define COL_GAP "  "
+/* BSD ls : la colonne du marqueur xattr ('@') est TOUJOURS reservee en -l
+   (un espace quand le fichier n'a pas de xattr). */
+#  define ACL_COL_ALWAYS 1
 /* BSD ls -R : pas d'en-tete "chemin:" pour un dossier-operande unique. */
 #  define REC_FORCES_HEADER 0
 /* BSD ls : toute erreur (argument, option, ouverture) -> code retour 1. */
@@ -68,6 +71,8 @@
 #  define TOTAL_BLOCKS(b) ((b) / 2)
 /* GNU ls : 1 espace entre les colonnes owner/group/size du -l. */
 #  define COL_GAP " "
+/* GNU ls : la colonne '+'/'.' n'est reservee que si une entree en a besoin. */
+#  define ACL_COL_ALWAYS 0
 /* GNU ls -R : en-tete "chemin:" meme pour un dossier-operande unique. */
 #  define REC_FORCES_HEADER 1
 /* GNU ls : erreur d'argument / d'option -> code retour 2 (sous-dossier -> 1). */
@@ -84,12 +89,25 @@
 #  define OPT_HELP "Try 'ls --help' for more information.\n"
 # endif
 
-/* Existence d'un attribut etendu SANS suivre les symlinks (>=0 s'il existe).
-   lgetxattr(4 args) sous Linux ; getxattr(6 args, XATTR_NOFOLLOW) sous mac. */
+/* Attributs etendus, SANS suivre les symlinks (on decrit le lien, comme lstat).
+   - X_HAS  : un attribut precis existe-t-il ? (>=0 = oui)
+   - X_LIST : taille de la liste des noms d'attributs (>0 = au moins un xattr)
+   - ACL_CHAR : le caractere du 11e champ du -l.
+     * BSD/mac : '@' des qu'un xattr est present (listxattr). Le '+' des ACL
+       BSD repose sur <sys/acl.h> (hors liste autorisee) -> non gere.
+     * GNU/Linux : '+' pour un ACL POSIX, '.' pour un contexte de securite. */
 # ifdef __APPLE__
 #  define X_HAS(path, name) (getxattr((path), (name), NULL, 0, 0, XATTR_NOFOLLOW))
+#  define X_LIST(path) (listxattr((path), NULL, 0, XATTR_NOFOLLOW))
+#  define ACL_CHAR(f) (X_LIST((f)->path) > 0 ? '@' : ' ')
 # else
 #  define X_HAS(path, name) (lgetxattr((path), (name), NULL, 0))
+#  define X_LIST(path) (llistxattr((path), NULL, 0))
+#  define ACL_CHAR(f) ( \
+	(X_HAS((f)->path, "system.posix_acl_access") >= 0 \
+		|| X_HAS((f)->path, "system.posix_acl_default") >= 0) ? '+' : \
+	(X_HAS((f)->path, "security.selinux") >= 0 \
+		|| X_HAS((f)->path, "security.SMACK64") >= 0) ? '.' : ' ')
 # endif
 
 /* Cle de tri active (le sens -r est gere a part, via opts->rev).
