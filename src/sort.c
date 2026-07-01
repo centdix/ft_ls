@@ -7,20 +7,20 @@
 time_t	ft_pick_time(struct stat *st, t_timek tk)
 {
 	if (tk == TK_ATIME)
-		return (st->st_atim.tv_sec);
+		return (ST_ATIM_S(*st));
 	if (tk == TK_CTIME)
-		return (st->st_ctim.tv_sec);
-	return (st->st_mtim.tv_sec);
+		return (ST_CTIM_S(*st));
+	return (ST_MTIM_S(*st));
 }
 
 /* Nanosecondes du champ temporel actif (depart de -t a la nanoseconde). */
 static long	pick_nsec(struct stat *st, t_timek tk)
 {
 	if (tk == TK_ATIME)
-		return (st->st_atim.tv_nsec);
+		return (ST_ATIM_NS(*st));
 	if (tk == TK_CTIME)
-		return (st->st_ctim.tv_nsec);
-	return (st->st_mtim.tv_nsec);
+		return (ST_CTIM_NS(*st));
+	return (ST_MTIM_NS(*st));
 }
 
 /* Tri -t/-u/-c facon ls : plus recent d'abord, depart a la nanoseconde. */

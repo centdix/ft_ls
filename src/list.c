@@ -17,6 +17,19 @@ static char	*path_join(char *dir, char *name)
 	return (res);
 }
 
+/* Erreur facon ls sur stderr : "ls: <reason> '<path>': <strerror>". Prefixe
+   "ls" (et non "ft_ls") pour matcher la sortie comparee dans tests/. */
+static void	ls_error(char *path, char *reason, int err)
+{
+	ft_putstr_fd("ls: ", 2);
+	ft_putstr_fd(reason, 2);
+	ft_putstr_fd(" '", 2);
+	ft_putstr_fd(path, 2);
+	ft_putstr_fd("': ", 2);
+	ft_putstr_fd(strerror(err), 2);
+	ft_putstr_fd("\n", 2);
+}
+
 /* Faut-il afficher cette entree ? -a : tout ; -A : tout sauf "." et ".." ;
    defaut : rien de ce qui commence par '.'. */
 static int	show_entry(char *name, t_opts *opts)
@@ -31,30 +44,63 @@ static int	show_entry(char *name, t_opts *opts)
 	return (0);
 }
 
+/* Cree un t_file pour une entree de dossier ; NULL si une allocation echoue
+   (name/path/malloc). #3 : si lstat echoue (fichier disparu, droits perdus),
+   on met st a zero -> pas de lecture de champs non initialises. NB : GNU
+   afficherait des '?' dans les colonnes -l ; ce rendu exact est postpose. */
+static t_file	*make_entry(char *path, char *name)
+{
+	t_file	*file;
+
+	file = malloc(sizeof(t_file));
+	if (!file)
+		return (NULL);
+	file->name = ft_strdup(name);
+	file->path = path_join(path, name);
+	file->acl = ' ';
+	if (!file->name || !file->path)
+	{
+		ft_free_file(file);
+		return (NULL);
+	}
+	/* lstat (pas stat) : on decrit le lien lui-meme, pas sa cible. */
+	if (lstat(file->path, &file->st) != 0)
+		ft_bzero(&file->st, sizeof(file->st));
+	return (file);
+}
+
 t_list	*ft_extract_entries(DIR *dir, char *path, t_opts *opts)
 {
 	t_list			*entries;
 	struct dirent	*entry;
 	t_file			*file;
+	t_list			*node;
 
 	entries = NULL;
+	errno = 0;
 	while ((entry = readdir(dir)) != NULL)
 	{
-		if (!show_entry(entry->d_name, opts))
-			continue ;
-		file = malloc(sizeof(t_file));
-		if (!file)
+		if (show_entry(entry->d_name, opts))
 		{
-			ft_lstclear(&entries, ft_free_file);
-			return (NULL);
+			file = make_entry(path, entry->d_name);
+			node = NULL;
+			if (file)
+				node = ft_lstnew(file);
+			if (!node)
+			{
+				if (file)
+					ft_free_file(file);
+				ft_lstclear(&entries, ft_free_file);
+				return (NULL);
+			}
+			ft_lstadd_back(&entries, node);
 		}
-		file->name = ft_strdup(entry->d_name);
-		file->path = path_join(path, entry->d_name);
-		file->acl = ' ';
-		/* lstat (pas stat) : on decrit le lien lui-meme, pas sa cible. */
-		lstat(file->path, &file->st);
-		ft_lstadd_back(&entries, ft_lstnew(file));
+		errno = 0;
 	}
+	/* #6 : readdir renvoie NULL en fin de dossier ET sur erreur -> errno
+	   distingue les deux (remis a 0 avant chaque lecture). */
+	if (errno != 0)
+		ls_error(path, "reading directory", errno);
 	return (entries);
 }
 
@@ -68,17 +114,24 @@ void	ft_free_file(void *content)
 	free(file);
 }
 
-/* Erreur facon ls sur stderr : "ls: <reason> '<path>': <strerror>". Prefixe
-   "ls" (et non "ft_ls") pour matcher la sortie comparee dans tests/. */
-static void	ls_error(char *path, char *reason, int err)
+/* t_file a partir d'un operande deja stat (durci : NULL si strdup echoue). */
+static t_file	*make_operand(t_path *op)
 {
-	ft_putstr_fd("ls: ", 2);
-	ft_putstr_fd(reason, 2);
-	ft_putstr_fd(" '", 2);
-	ft_putstr_fd(path, 2);
-	ft_putstr_fd("': ", 2);
-	ft_putstr_fd(strerror(err), 2);
-	ft_putstr_fd("\n", 2);
+	t_file	*f;
+
+	f = malloc(sizeof(t_file));
+	if (!f)
+		return (NULL);
+	f->name = ft_strdup(op->path);
+	f->path = ft_strdup(op->path);
+	f->acl = ' ';
+	f->st = op->st;
+	if (!f->name || !f->path)
+	{
+		ft_free_file(f);
+		return (NULL);
+	}
+	return (f);
 }
 
 /* Convertit chaque operande valide (fichier ET dossier) en t_file. Les
@@ -88,24 +141,22 @@ static void	ls_error(char *path, char *reason, int err)
 static t_list	*collect_operand_files(t_list *operands)
 {
 	t_list	*all;
-	t_path	*op;
 	t_file	*f;
+	t_list	*node;
 
 	all = NULL;
 	while (operands)
 	{
-		op = operands->content;
-		if (op->staterr == 0)
+		if (((t_path *)operands->content)->staterr == 0)
 		{
-			f = malloc(sizeof(t_file));
+			f = make_operand(operands->content);
+			node = NULL;
 			if (f)
-			{
-				f->name = ft_strdup(op->path);
-				f->path = ft_strdup(op->path);
-				f->acl = ' ';
-				f->st = op->st;
-				ft_lstadd_back(&all, ft_lstnew(f));
-			}
+				node = ft_lstnew(f);
+			if (node)
+				ft_lstadd_back(&all, node);
+			else if (f)
+				ft_free_file(f);
 		}
 		operands = operands->next;
 	}

@@ -173,15 +173,16 @@ static void	update_size_width(t_file *f, t_widths *w)
 
 /* Bonus : indicateur d'acces etendu facon GNU. '+' si le fichier porte un ACL
    POSIX (xattr system.posix_acl_access/_default), '.' s'il n'a qu'un contexte
-   de securite (SELinux/SMACK), ' ' sinon. lgetxattr ne suit pas les symlinks
-   (on decrit le lien lui-meme, comme lstat). */
+   de securite (SELinux/SMACK), ' ' sinon. X_HAS ne suit pas les symlinks (on
+   decrit le lien lui-meme, comme lstat). Sur macOS ces xattr POSIX n'existent
+   pas -> renvoie ' ' (le '+' du BSD ls repose sur une autre API, hors sujet). */
 static char	acl_char(t_file *f)
 {
-	if (lgetxattr(f->path, "system.posix_acl_access", NULL, 0) >= 0
-		|| lgetxattr(f->path, "system.posix_acl_default", NULL, 0) >= 0)
+	if (X_HAS(f->path, "system.posix_acl_access") >= 0
+		|| X_HAS(f->path, "system.posix_acl_default") >= 0)
 		return ('+');
-	if (lgetxattr(f->path, "security.selinux", NULL, 0) >= 0
-		|| lgetxattr(f->path, "security.SMACK64", NULL, 0) >= 0)
+	if (X_HAS(f->path, "security.selinux") >= 0
+		|| X_HAS(f->path, "security.SMACK64") >= 0)
 		return ('.');
 	return (' ');
 }
@@ -410,10 +411,10 @@ void	ft_print_long_list(t_list *entries, int show_total, t_opts *opts)
 
 	/* entries peut etre NULL -> dossier vide, "total 0". */
 	ft_calc_widths(entries, &w);
-	/* ls affiche des blocs de 1 Ko -> /2. */
+	/* unite des blocs "total" selon l'OS (GNU: 1 Ko ; BSD/mac: 512 o). */
 	if (show_total)
 	{
-		nbr = nbr_to_str(sum_blocks(entries) / 2);
+		nbr = nbr_to_str(TOTAL_BLOCKS(sum_blocks(entries)));
 		ft_printf("total %s\n", nbr);
 		free(nbr);
 	}

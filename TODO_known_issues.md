@@ -32,85 +32,71 @@ diff <(./ft_ls "$@") <(LC_ALL=C gnu "$@")
 
 ## 1. Tri `-t` : départage des fichiers ayant un mtime IDENTIQUE
 
-**Statut : non résolu, à investiguer.**
+**Statut : RÉSOLU — aucun bug vs GNU. Faux positif (comparaison uutils).**
 
-Sur un dossier où plusieurs entrées ont **exactement le même mtime (à la
-nanoseconde)**, notre ordre `-t` ne correspond pas à celui du vrai `ls`.
+L'ancienne divergence venait d'une comparaison contre le `ls` **uutils/Rust**
+(`/bin/ls` de cette machine), **pas** contre GNU. Réenquête faite contre le
+**vrai GNU** (`/usr/bin/gnuls`, invoqué `ls`, `LC_ALL=C`).
 
-### Reproduction
-```sh
-diff <(./ft_ls -t /etc) <(LC_ALL=C ls -1t /etc)
-```
+### Preuve (`/etc/rc?.d`, tous au mtime `2026-05-11 09:55:07.093563939`)
+| source              | ordre sur égalité parfaite      |
+|---------------------|----------------------------------|
+| **GNU `ls -t`**     | rc0, rc1, rc2, rc3, rc4… (**nom asc**) |
+| **nous `ft_ls -t`** | rc0, rc1, rc2, rc3, rc4… (**nom asc**) → identique |
+| Rust/uutils `ls -t` | rc5, rc3, rc1, rc6, rc4, rc2, rc0 (readdir/inode) |
 
-### Preuve récoltée (`/etc/rc{0..4}.d`)
-Les 5 dossiers ont un mtime strictement identique :
-```
-2026-05-11 09:55:07.093563939   rc0.d / rc1.d / rc2.d / rc3.d / rc4.d
-```
-Pourtant les ordres divergent :
+→ GNU départage bien par **nom ascendant** sur mtime identique, exactement
+comme notre `cmp_files` (fallback `ft_strncmp` sur le nom). Vérifié identique
+à GNU sur `-t -rt -tr -lt -ltr /etc` et `-t /usr/lib` (dossiers riches en
+clusters de timestamps identiques). Le fallback name est **stable** et correct.
 
-| source            | ordre obtenu              |
-|-------------------|---------------------------|
-| nous (`ft_ls -t`) | rc0, rc1, rc2, rc3, rc4   | (fallback nom ascendant)
-| vrai `ls -t`      | rc2, rc1, rc0, rc4, rc3   | (ni nom, ni readdir)
-| `ls -f` (readdir) | rc2, rc4, rc3, rc1, rc0   |
-| inodes            | 331..372 (pas monotone)   |
-
-→ L'ordre du vrai `ls` sur égalité parfaite ne correspond **ni** au tri par
-nom (asc/desc) **ni** à l'ordre readdir brut **ni** à l'inode. Comportement
-GNU coreutils à creuser (mergesort stable + comparateur exact de `ls.c`,
-`cmp_mtime` → fallback `cmp_name`… mais le résultat observé contredit ça).
-
-### Ce qui marche déjà
-- `-t`, `-tr`, `-r`, listing simple : **identiques** au vrai `ls` quand les
-  mtimes sont distincts (ex. dossier courant, `/etc` en listing simple).
-- Le souci est **isolé** aux clusters de fichiers au timestamp identique
-  (artefacts d'installation de paquets).
-
-### Piste de fix
-Comprendre l'ordre de départage réel de GNU `ls` sur égalité totale, puis
-reproduire. Vérifier aussi le comportement attendu en éval 42 (souvent des
-dossiers de test sans timestamps identiques → peut ne jamais se voir).
+Rien à corriger : notre cible d'évaluation est GNU coreutils.
 
 ---
 
-## 2. Portabilité macOS : champ nanoseconde de `struct stat`
+## 2. Portabilité macOS
 
-**Statut : OK sous Linux (cible actuelle), à adapter si test sur Mac.**
+**Statut : FAIT (écrit pour Linux ET macOS). Non recompilé sur Mac ici.**
 
-`cmp_mtime` (src/sort.c) lit les nanosecondes via `st.st_mtim.tv_nsec`
-(orthographe **Linux / POSIX.1-2008**). Sur **macOS** le champ s'appelle
-`st_mtimespec.tv_nsec`.
+Toutes les divergences glibc/Linux ↔ BSD/macOS sont isolées derrière des
+macros `#ifdef __APPLE__` dans `includes/ft_ls.h` :
 
-### Fix prévu (si besoin Mac)
-```c
-#ifdef __APPLE__
-# define ST_MTIME_NSEC(st) ((st).st_mtimespec.tv_nsec)
-#else
-# define ST_MTIME_NSEC(st) ((st).st_mtim.tv_nsec)
-#endif
-```
-et remplacer les accès `st.st_mtim.tv_nsec` par `ST_MTIME_NSEC(st)`.
+- **Champs temporels** : `ST_ATIM_S/NS`, `ST_MTIM_S/NS`, `ST_CTIM_S/NS`
+  → `st_atim.*` (Linux) vs `st_atimespec.*` (mac). Utilisés dans `sort.c`
+  (`ft_pick_time`, `pick_nsec`) et `format.c`.
+- **`major`/`minor`** : `<sys/sysmacros.h>` inclus **seulement** hors mac
+  (sur mac ils viennent de `<sys/types.h>`).
+- **xattr (bonus ACL)** : macro `X_HAS` → `lgetxattr(4 args)` sous Linux,
+  `getxattr(6 args, XATTR_NOFOLLOW)` sous mac. Sur mac, les xattr POSIX
+  `system.posix_acl_*` n'existent pas → `acl_char` renvoie `' '` (le `+`/`@`
+  du BSD ls repose sur `<sys/acl.h>`, laissé hors périmètre).
+- **Ligne `total`** : macro `TOTAL_BLOCKS` → `st_blocks / 2` (GNU, blocs 1 Ko)
+  vs `st_blocks` (BSD/mac, blocs 512 o).
 
-Les machines de correction 42 sont sous Linux → non bloquant pour l'instant.
+⚠️ Cette machine est sous Linux : les branches `__APPLE__` sont écrites
+d'après l'API documentée mais **non compilées/testées ici**. À revalider
+d'un `make` sur un vrai Mac avant une éval macOS.
 
 ---
 
-## 3. `lstat` non vérifié dans `ft_extract_entries` (à durcir)
+## 3. `lstat` non vérifié dans `ft_extract_entries`
 
-**Statut : gap connu, edge case.**
+**Statut : SÉCURISÉ (plus d'UB). Affichage `?` exact + rc 1 : POSTPONÉ.**
 
-`src/list.c`, `ft_extract_entries` : `lstat(file->path, &file->st);` ignore la
-valeur de retour. Si `lstat` échoue (fichier disparu entre `readdir` et
-`lstat`, permission sur le dossier parent perdue en cours de route…), `file->st`
-reste **non initialisé** → champs `-l` aberrants, et **pas de code retour 1**.
+`make_entry` (`src/list.c`) teste désormais `lstat` : en cas d'échec, `st` est
+**mis à zéro** (`ft_bzero`) → plus aucune lecture de champ non initialisé
+(vérifié valgrind : 0 erreur sur un dossier `r--` où tous les `lstat` échouent).
 
-Comportement GNU : affiche `?` dans les champs concernés (mode, liens, taille…)
-et sort en **1**. À reproduire si on veut le pixel-perfect complet.
+Ce qui reste (volontairement postponé, edge case quasi introuvable en éval) :
+GNU, lui, affiche des `?` dans chaque colonne `-l` (en tirant le type de
+`dirent->d_type`), imprime `ls: cannot access '<path>': ...` par entrée, et
+sort en **1**. Nous affichons à la place des champs à zéro
+(`---------- 0 root root 0 Jan  1 1970 nom`), sans message ni rc 1.
 
-### Piste
-Tester `if (lstat(...) < 0)` → marquer l'entrée (flag `staterr`), afficher `?`
-dans `format.c`, et faire remonter un niveau d'erreur 1.
+### Piste (si pixel-perfect voulu un jour)
+Flag `staterr` sur `t_file` → dans `format.c`, remplacer chaque colonne par
+`?` (type via `d_type`), largeur `?` = 1 ; émettre l'erreur par entrée ;
+propager un niveau d'erreur 1.
 
 ---
 
@@ -125,33 +111,32 @@ l'éval 42. À garder tel quel sauf consigne contraire.
 
 ---
 
-## 5. Allocations non vérifiées dans les entrées de dossier (à durcir)
+## 5. Allocations non vérifiées dans les entrées de dossier
 
-**Statut : gap connu, sous pression mémoire uniquement.**
+**Statut : FAIT.**
 
-Dans `ft_extract_entries` / `ft_list_file_operands` :
-- `ft_strdup(name)` et `path_join(...)` peuvent renvoyer `NULL` → `file->name`
-  ou `file->path` NULL, déréférencés plus loin dans le tri/affichage.
-- `ft_lstnew(file)` peut renvoyer `NULL` → le `t_file` fuit et n'est pas ajouté.
-
-Les opérandes (parse.c, `add_operand`) et les `malloc(sizeof(t_file))` sont déjà
-durcis ; ce sont les `strdup`/`lstnew` internes qu'il reste à couvrir. Rare, mais
-à fermer pour un `malloc`-hardening complet.
+- `make_entry` (contenu de dossier) et `make_operand` (opérandes) vérifient
+  `malloc` + `ft_strdup`/`path_join` : si l'une échoue, le `t_file` partiel est
+  libéré (`ft_free_file`, tolérant aux `NULL`) et renvoie `NULL`.
+- Boucles appelantes : `ft_lstnew` vérifié. En contenu de dossier, un échec
+  abandonne proprement le listing (`ft_lstclear` + `return NULL`) ; en bloc
+  d'opérandes, l'entrée est simplement sautée. Aucun deref de `NULL`, aucune
+  fuite du `t_file` non inséré.
 
 ---
 
-## 6. Divers (non bloquant, hors périmètre mandatory)
+## 6. Divers
 
-- **`readdir` + `errno`** : NULL est traité comme fin de dossier sans distinguer
-  une vraie erreur de lecture (errno). GNU distingue. Edge case.
-- **Marqueur ACL `+`** : GNU ajoute `+` après les permissions pour un fichier
-  avec ACL/attributs étendus. Non implémenté (bonus hors sujet). Pas de diff sur
-  cette machine car `/dev`, `/etc`… n'ont pas d'ACL.
+- **`readdir` + `errno`** : **FAIT**. `errno` est remis à 0 avant chaque
+  lecture ; si `readdir` renvoie NULL avec `errno != 0` (vraie erreur de
+  lecture, pas fin de dossier), on émet `ls: reading directory '<path>': ...`.
+  (rc dédié non propagé — best-effort, cas très rare.)
+- **Marqueur ACL `+`** : **FAIT** (voir commit ACL). `+` (ACL POSIX) / `.`
+  (contexte sécurité), colonne réservée par bloc.
+- **Options `-1 -A -d -f -g -o -i -S -c -u -p`** : **FAITES** (voir commit
+  options). Toutes vérifiées identiques à GNU.
 - **Tri dépendant de la locale** : on trie en ordre d'octets (`LC_ALL=C`). GNU en
   locale non-C trie autrement (casse, accents). L'éval tourne en `LC_ALL=C` →
   conforme là où ça compte.
-- **Taille des blocs `total`** : on suppose `st_blocks / 2` (blocs 512 o →
-  affichage en 1 Ko). Correct par défaut sous Linux ; divergerait avec
-  `POSIXLY_CORRECT`/`BLOCK_SIZE` exotiques.
-- **Options non implémentées** (hors mandatory `-l -R -a -r -t`) : `-1 -d -f -g
-  -i -S -c -u`… À n'ajouter que si demandé.
+- **`total` / `BLOCK_SIZE` exotiques** : `TOTAL_BLOCKS` gère Linux (1 Ko) et
+  mac (512 o) ; on ne gère pas `POSIXLY_CORRECT`/`BLOCK_SIZE` custom (hors sujet).

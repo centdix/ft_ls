@@ -15,8 +15,7 @@
 
 /* --- metadonnees des fichiers --- */
 # include <sys/stat.h>      /* stat, lstat, struct stat, S_IS*, S_I*  */
-# include <sys/types.h>
-# include <sys/sysmacros.h> /* major, minor (fichiers de peripherique)*/
+# include <sys/types.h>     /* major, minor (mac : ici ; Linux : ci-dessous) */
 
 /* --- traductions uid/gid, dates, liens --- */
 # include <pwd.h>        /* getpwuid                               */
@@ -24,7 +23,40 @@
 # include <time.h>       /* time, ctime                            */
 # include <errno.h>      /* errno (messages d'erreur facon ls)     */
 # include <string.h>     /* strerror                               */
-# include <sys/xattr.h>  /* lgetxattr (bonus: marqueur ACL '+')    */
+# include <sys/xattr.h>  /* getxattr/lgetxattr (bonus: marqueur ACL) */
+
+/* --- Portabilite Linux / macOS ------------------------------------------
+   Les champs "nanoseconde" de struct stat, l'API xattr et l'unite des blocs
+   de la ligne "total" different entre glibc/Linux et BSD/macOS. On isole ces
+   differences ici pour que le reste du code reste identique sur les 2 OS. */
+# ifdef __APPLE__
+#  define ST_ATIM_S(st)  ((st).st_atimespec.tv_sec)
+#  define ST_ATIM_NS(st) ((st).st_atimespec.tv_nsec)
+#  define ST_MTIM_S(st)  ((st).st_mtimespec.tv_sec)
+#  define ST_MTIM_NS(st) ((st).st_mtimespec.tv_nsec)
+#  define ST_CTIM_S(st)  ((st).st_ctimespec.tv_sec)
+#  define ST_CTIM_NS(st) ((st).st_ctimespec.tv_nsec)
+/* BSD ls : "total" en blocs de 512 o (pas de division). */
+#  define TOTAL_BLOCKS(b) (b)
+# else
+#  include <sys/sysmacros.h> /* major, minor sous glibc                 */
+#  define ST_ATIM_S(st)  ((st).st_atim.tv_sec)
+#  define ST_ATIM_NS(st) ((st).st_atim.tv_nsec)
+#  define ST_MTIM_S(st)  ((st).st_mtim.tv_sec)
+#  define ST_MTIM_NS(st) ((st).st_mtim.tv_nsec)
+#  define ST_CTIM_S(st)  ((st).st_ctim.tv_sec)
+#  define ST_CTIM_NS(st) ((st).st_ctim.tv_nsec)
+/* GNU ls : "total" en blocs de 1 Ko (st_blocks est en unites de 512 o). */
+#  define TOTAL_BLOCKS(b) ((b) / 2)
+# endif
+
+/* Existence d'un attribut etendu SANS suivre les symlinks (>=0 s'il existe).
+   lgetxattr(4 args) sous Linux ; getxattr(6 args, XATTR_NOFOLLOW) sous mac. */
+# ifdef __APPLE__
+#  define X_HAS(path, name) (getxattr((path), (name), NULL, 0, 0, XATTR_NOFOLLOW))
+# else
+#  define X_HAS(path, name) (lgetxattr((path), (name), NULL, 0))
+# endif
 
 /* Cle de tri active (le sens -r est gere a part, via opts->rev).
    SORT_NONE = -f (ordre du readdir, pas de tri). */
