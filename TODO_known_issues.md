@@ -112,24 +112,29 @@ macros `#ifdef __APPLE__` dans `includes/ft_ls.h` :
 
 ---
 
-## 3. `lstat` non vérifié dans `ft_extract_entries`
+## 3. `lstat` échoué sur une entrée de dossier → colonnes `?` GNU
 
-**Statut : SÉCURISÉ (plus d'UB). Affichage `?` exact + rc 1 : POSTPONÉ.**
+**Statut : RÉSOLU — identique à GNU (stdout + stderr + rc), 0 fuite.**
 
-`make_entry` (`src/list.c`) teste désormais `lstat` : en cas d'échec, `st` est
-**mis à zéro** (`ft_bzero`) → plus aucune lecture de champ non initialisé
-(vérifié valgrind : 0 erreur sur un dossier `r--` où tous les `lstat` échouent).
+`make_entry` (`src/list.c`) enregistre désormais `staterr = errno` (+ `dtype`
+issu de `dirent->d_type`) quand `lstat` échoue, `st` restant mis à zéro (plus
+aucune lecture de champ non initialisé — vérifié valgrind sur un dossier `600`
+où tous les `lstat` échouent : 0 fuite).
 
-Ce qui reste (volontairement postponé, edge case quasi introuvable en éval) :
-GNU, lui, affiche des `?` dans chaque colonne `-l` (en tirant le type de
-`dirent->d_type`), imprime `ls: cannot access '<path>': ...` par entrée, et
-sort en **1**. Nous affichons à la place des champs à zéro
-(`---------- 0 root root 0 Jan  1 1970 nom`), sans message ni rc 1.
+Rendu GNU reproduit :
+- **`-l`** : `<type>?????????  ? ? ? ?  <11 esp>? nom` — le caractère de type
+  vient de `d_type` (`dtype_char`, `DT_UNKNOWN` → `?`), chaque colonne vaut un
+  `?` de largeur 1 (`update_widths_unknown` empêche le `st` à zéro d'élargir
+  les colonnes, ex. uid 0 → "root"), date = `?` cadré à droite sur 12.
+- **`-i`** : inode affiché `?`.
+- **stderr** : `ls: cannot access '<path>': <err>` par entrée, **en ordre
+  readdir** (émis avant le tri, `report_stat_errors` dans `list.c`).
+- **rc 1**, mais **seulement** si `ls` a besoin du `stat` (`-l`, `-i`, tri
+  `-t`/`-S`) ; un listing court trié par nom ne stat pas → aucune erreur, rc 0
+  (conforme GNU).
 
-### Piste (si pixel-perfect voulu un jour)
-Flag `staterr` sur `t_file` → dans `format.c`, remplacer chaque colonne par
-`?` (type via `d_type`), largeur `?` = 1 ; émettre l'erreur par entrée ;
-propager un niveau d'erreur 1.
+Vérifié byte-for-byte vs `/usr/bin/gnuls` sur `-l -i -li -lir -lt -lR` +
+court + `-R`. Couvert par `tests/run_all.sh` (section « locked », réf. GNU).
 
 ---
 

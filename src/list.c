@@ -34,9 +34,10 @@ static int show_entry(char *name, t_opts *opts) {
   return (0);
 }
 
-// t_file for a dir entry; NULL on alloc failure. zero st if lstat fails
-// (vanished file / lost perms) so we never read uninitialized fields
-static t_file *make_entry(char *path, char *name) {
+// t_file for a dir entry; NULL on alloc failure. on lstat failure (vanished
+// file / lost perms) zero st and record errno in staterr, so -l/-i can render
+// GNU-style '?' columns instead of reading uninitialized fields
+static t_file *make_entry(char *path, char *name, unsigned char dtype) {
   t_file *file;
 
   file = malloc(sizeof(t_file));
@@ -45,13 +46,17 @@ static t_file *make_entry(char *path, char *name) {
   file->name = ft_strdup(name);
   file->path = path_join(path, name);
   file->acl = ' ';
+  file->staterr = 0;
+  file->dtype = dtype;
   if (!file->name || !file->path) {
     ft_free_file(file);
     return (NULL);
   }
   // lstat, not stat: describe the link itself, not its target
-  if (lstat(file->path, &file->st) != 0)
+  if (lstat(file->path, &file->st) != 0) {
+    file->staterr = errno;
     ft_bzero(&file->st, sizeof(file->st));
+  }
   return (file);
 }
 
@@ -65,7 +70,7 @@ t_list *ft_extract_entries(DIR *dir, char *path, t_opts *opts) {
   errno = 0;
   while ((entry = readdir(dir)) != NULL) {
     if (show_entry(entry->d_name, opts)) {
-      file = make_entry(path, entry->d_name);
+      file = make_entry(path, entry->d_name, entry->d_type);
       node = NULL;
       if (file)
         node = ft_lstnew(file);
@@ -102,6 +107,8 @@ static t_file *make_operand(t_path *op) {
   f->name = ft_strdup(op->path);
   f->path = ft_strdup(op->path);
   f->acl = ' ';
+  f->staterr = 0;
+  f->dtype = 0;
   f->st = op->st;
   if (!f->name || !f->path) {
     ft_free_file(f);
@@ -194,6 +201,29 @@ int ft_print_access_errors(t_list *paths) {
   return (err);
 }
 
+// GNU emits "ls: cannot access '<path>': <err>" per unstattable entry and
+// exits 1 -- but only when it actually needs the metadata (-l, -i, or a
+// time/size sort). A plain name-sorted short listing never stats -> no error.
+// errors are printed in readdir order (this list is still unsorted here)
+static int report_stat_errors(t_list *entries, t_opts *opts) {
+  t_file *f;
+  int err;
+
+  if (!(opts->list || opts->inode || opts->sort == SORT_TIME ||
+        opts->sort == SORT_SIZE))
+    return (0);
+  err = 0;
+  while (entries) {
+    f = entries->content;
+    if (f->staterr) {
+      ls_error(f->path, "cannot access", f->staterr);
+      err = 1;
+    }
+    entries = entries->next;
+  }
+  return (err);
+}
+
 // list a directory: separator + optional header + sorted content, then recurse
 // if -R.
 int ft_list_one_dir(char *path, t_opts *opts, int header, int *printed,
@@ -215,6 +245,7 @@ int ft_list_one_dir(char *path, t_opts *opts, int header, int *printed,
   if (header)
     ft_printf("%s:\n", path);
   entries = ft_extract_entries(dir, path, opts);
+  err = report_stat_errors(entries, opts);
   ft_sort_list(entries, opts);
   // 1 = print the "total" line (this is a directory's content)
   if (opts->list)
@@ -222,7 +253,6 @@ int ft_list_one_dir(char *path, t_opts *opts, int header, int *printed,
   else
     ft_print_list(entries, opts);
   *printed = 1;
-  err = 0;
   cur = entries;
   while (opts->rec && cur) {
     file = cur->content;

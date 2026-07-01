@@ -35,8 +35,17 @@ PASS=0
 FAIL=0
 FAILED=()
 
-# ls de reference : binaire reel (pas d'alias du shell) + couleur desactivee.
-REF_LS="command ls --color=never"
+# ls de reference : le VRAI GNU coreutils (cible d'evaluation 42). Sur cette
+# machine /bin/ls est uutils/Rust, qui diverge sur les cas limites (ex: dossier
+# non-traversable -> pas d'erreur ni rc 1, cf. TODO_known_issues #0/#3). On
+# prefere donc /usr/bin/gnuls s'il existe, invoque avec argv[0]="ls" pour que
+# le prefixe des erreurs soit "ls:" comme le notre. Sur une machine d'eval
+# standard (ou `ls` == GNU), on retombe simplement sur `command ls`.
+if [ -x /usr/bin/gnuls ]; then
+	refls() { bash -c 'exec -a ls /usr/bin/gnuls --color=never "$@"' ls "$@"; }
+else
+	refls() { command ls --color=never "$@"; }
+fi
 
 om=$(mktemp); om2=$(mktemp); em=$(mktemp); er=$(mktemp)
 
@@ -47,8 +56,8 @@ run()
 {
 	desc="$1"
 	shift
-	LC_ALL=C "$BIN"  "$@" >"$om"  2>"$em"; c_m=$?
-	LC_ALL=C $REF_LS "$@" >"$om2" 2>"$er"; c_r=$?
+	LC_ALL=C "$BIN" "$@" >"$om"  2>"$em"; c_m=$?
+	LC_ALL=C refls  "$@" >"$om2" 2>"$er"; c_r=$?
 	if diff -q "$om" "$om2" >/dev/null 2>&1 && [ "$c_m" = "$c_r" ] \
 		&& diff -q "$em" "$er" >/dev/null 2>&1; then
 		PASS=$((PASS + 1))
@@ -107,6 +116,24 @@ run "fixture -la"   -la  "$FIX"
 run "fixture -lR"   -lR  "$FIX"
 run "fixture -laR"  -laR "$FIX"
 run "fixture -lt"   -lt  "$FIX"
+
+# ---- 5b. dossier lisible mais non-traversable (chmod 600) ------------------
+# readdir renvoie les noms mais lstat de chaque entree echoue (EACCES). GNU
+# affiche alors des '?' dans chaque colonne -l/-i, une erreur "cannot access"
+# par entree sur stderr, et sort en 1. Un listing court (sans -l/-i) ne stat
+# rien -> aucune erreur, sortie 0. (cf. TODO_known_issues #3)
+LOCK=/tmp/ft_ls_locked
+rm -rf "$LOCK"; mkdir -p "$LOCK"; : >"$LOCK/alpha"; : >"$LOCK/beta"; printf 'x\n' >"$LOCK/gamma"
+chmod 600 "$LOCK"
+run "locked -l"      -l   "$LOCK"
+run "locked -i"      -i   "$LOCK"
+run "locked -li"     -li  "$LOCK"
+run "locked -lir"    -lir "$LOCK"
+run "locked -lt"     -lt  "$LOCK"
+run "locked -lR"     -lR  "$LOCK"
+run "locked short"        "$LOCK"
+run "locked -R"      -R   "$LOCK"
+chmod 700 "$LOCK"; rm -rf "$LOCK"
 
 # ---- 6. gros dossiers ------------------------------------------------------
 run "big /usr/lib"  /usr/lib

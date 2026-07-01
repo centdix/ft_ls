@@ -3,6 +3,26 @@
 // ls switches to "Mmm jj  YYYY" past ~6 months (else "Mmm jj hh:mm")
 #define SIX_MONTHS 15778476
 
+// type char from readdir's d_type, for an entry we couldn't lstat (GNU pulls
+// the leading char from d_type and prints '?' for the rest). DT_UNKNOWN -> '?'
+static char dtype_char(unsigned char dt) {
+  if (dt == DT_DIR)
+    return ('d');
+  if (dt == DT_LNK)
+    return ('l');
+  if (dt == DT_CHR)
+    return ('c');
+  if (dt == DT_BLK)
+    return ('b');
+  if (dt == DT_FIFO)
+    return ('p');
+  if (dt == DT_SOCK)
+    return ('s');
+  if (dt == DT_REG)
+    return ('-');
+  return ('?');
+}
+
 static char type_char(mode_t m) {
   if (S_ISDIR(m))
     return ('d');
@@ -154,10 +174,29 @@ static void update_size_width(t_file *f, t_widths *w) {
 // follow symlinks (describes the link itself, like lstat)
 static char acl_char(t_file *f) { return (ACL_CHAR(f)); }
 
+// an unstattable entry (staterr) contributes a single '?' to every column, so
+// its zeroed stat (uid 0 -> "root", etc.) must not widen anything
+static void update_widths_unknown(t_widths *w) {
+  if (w->inode < 1)
+    w->inode = 1;
+  if (w->links < 1)
+    w->links = 1;
+  if (w->owner < 1)
+    w->owner = 1;
+  if (w->group < 1)
+    w->group = 1;
+  if (w->size < 1)
+    w->size = 1;
+}
+
 // update the max widths from an entry (and the ACL indicator)
 static void update_widths(t_file *f, t_widths *w) {
   char *s;
 
+  if (f->staterr) {
+    update_widths_unknown(w);
+    return;
+  }
   f->acl = acl_char(f);
   if (f->acl != ' ')
     w->aclcol = 1;
@@ -215,12 +254,17 @@ static void print_symlink_target(t_file *f) {
   ft_printf(" -> %s", target);
 }
 
-// -i prefix: inode number right-aligned, then a space
+// -i prefix: inode number right-aligned, then a space ('?' if unstattable)
 static void print_inode_prefix(t_file *f, t_widths *w, t_opts *opts) {
   char *nbr;
 
   if (!opts->inode)
     return;
+  if (f->staterr) {
+    print_right("?", w->inode);
+    ft_printf(" ");
+    return;
+  }
   nbr = nbr_to_str(f->st.st_ino);
   print_right(nbr, w->inode);
   free(nbr);
@@ -253,12 +297,40 @@ static void print_owner_group(t_file *f, t_widths *w, t_opts *opts) {
   }
 }
 
+// GNU-style long line for an entry we couldn't lstat: type char (from d_type)
+// then '?' in every field, date '?' right-justified in the 12-wide date column
+static void print_long_unknown(t_file *f, t_widths *w, t_opts *opts) {
+  print_inode_prefix(f, w, opts);
+  ft_printf("%c?????????", dtype_char(f->dtype));
+  if (w->aclcol)
+    ft_printf(" ");
+  ft_printf(" ");
+  print_right("?", w->links);
+  ft_printf(" ");
+  if (!opts->noowner) {
+    print_left("?", w->owner);
+    ft_printf(COL_GAP);
+  }
+  if (!opts->nogroup) {
+    print_left("?", w->group);
+    ft_printf(COL_GAP);
+  }
+  print_right("?", w->size);
+  ft_printf(" ");
+  print_right("?", 12);
+  ft_printf(" %s\n", f->name);
+}
+
 // print one long-format line, columns aligned on w
 static void print_long_line(t_file *f, t_widths *w, t_opts *opts) {
   char perms[11];
   char date[13];
   char *nbr;
 
+  if (f->staterr) {
+    print_long_unknown(f, w, opts);
+    return;
+  }
   mode_to_str(f->st.st_mode, perms);
   time_str(ft_pick_time(&f->st, opts->timek), date);
   print_inode_prefix(f, w, opts);

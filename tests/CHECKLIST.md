@@ -21,6 +21,8 @@ Pour chaque cas : **stdout identique**, **stderr identique**, **code retour iden
 - [ ] chemin avec slash final (`src/`)
 - [ ] dossier vide
 - [ ] dossier sans droit de lecture (`chmod 000`) → erreur + continue
+- [ ] dossier lisible mais non-traversable (`chmod 600`) → noms listés, mais
+      `-l`/`-i` : colonnes `?`, `ls: cannot access` par entrée, rc 1 ; court : rc 0
 
 ## 2. Erreurs (Lesson 9)
 - [ ] chemin inexistant → `ls: cannot access 'X': No such file or directory` sur **stderr**
@@ -55,6 +57,8 @@ Pour chaque cas : **stdout identique**, **stderr identique**, **code retour iden
 - [ ] symlink : `lien -> cible` (+ lien cassé)
 - [ ] devices (char/block) : afficher major/minor au lieu de la taille
 - [ ] `+`/`@` ACL/xattr après les droits (listxattr) — bonus
+- [ ] entrée non-statable (`lstat` échoue) : `<type>????????? ? ? ? ? ? nom`
+      (type via `d_type`), colonnes largeur 1, date `?` cadrée à droite sur 12
 
 ## 6. Tri (LC_ALL=C)
 - [ ] alpha ASCII (MAJUSCULES avant minuscules)

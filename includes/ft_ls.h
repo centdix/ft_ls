@@ -148,7 +148,9 @@ typedef struct s_path {
 typedef struct s_file {
   char *name;
   char *path;
-  char acl; /* bonus: '+' (ACL), '.' (context), ' ' (none)    */
+  char acl;             /* bonus: '+' (ACL), '.' (context), ' ' (none)    */
+  int staterr;          /* 0 if lstat succeeded, else errno (unstattable) */
+  unsigned char dtype;  /* readdir d_type (for the type char when staterr) */
   struct stat st;
 } t_file;
 
