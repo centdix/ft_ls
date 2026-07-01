@@ -37,10 +37,10 @@ FAILED=()
 
 # ls de reference : le VRAI GNU coreutils (cible d'evaluation 42). Sur cette
 # machine /bin/ls est uutils/Rust, qui diverge sur les cas limites (ex: dossier
-# non-traversable -> pas d'erreur ni rc 1, cf. TODO_known_issues #0/#3). On
-# prefere donc /usr/bin/gnuls s'il existe, invoque avec argv[0]="ls" pour que
-# le prefixe des erreurs soit "ls:" comme le notre. Sur une machine d'eval
-# standard (ou `ls` == GNU), on retombe simplement sur `command ls`.
+# non-traversable -> pas d'erreur ni rc 1). On prefere donc /usr/bin/gnuls s'il
+# existe, invoque avec argv[0]="ls" pour que le prefixe des erreurs soit "ls:"
+# comme le notre. Sur une machine d'eval standard (ou `ls` == GNU), on retombe
+# simplement sur `command ls`.
 if [ -x /usr/bin/gnuls ]; then
 	refls() { bash -c 'exec -a ls /usr/bin/gnuls --color=never "$@"' ls "$@"; }
 else
@@ -121,7 +121,7 @@ run "fixture -lt"   -lt  "$FIX"
 # readdir renvoie les noms mais lstat de chaque entree echoue (EACCES). GNU
 # affiche alors des '?' dans chaque colonne -l/-i, une erreur "cannot access"
 # par entree sur stderr, et sort en 1. Un listing court (sans -l/-i) ne stat
-# rien -> aucune erreur, sortie 0. (cf. TODO_known_issues #3)
+# rien -> aucune erreur, sortie 0.
 LOCK=/tmp/ft_ls_locked
 rm -rf "$LOCK"; mkdir -p "$LOCK"; : >"$LOCK/alpha"; : >"$LOCK/beta"; printf 'x\n' >"$LOCK/gamma"
 chmod 600 "$LOCK"
