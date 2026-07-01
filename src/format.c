@@ -284,14 +284,14 @@ static void	print_owner_group(t_file *f, t_widths *w, t_opts *opts)
 	{
 		owner = owner_name(f->st.st_uid);
 		print_left(owner, w->owner);
-		ft_printf(" ");
+		ft_printf(COL_GAP);
 		free(owner);
 	}
 	if (!opts->nogroup)
 	{
 		group = group_name(f->st.st_gid);
 		print_left(group, w->group);
-		ft_printf(" ");
+		ft_printf(COL_GAP);
 		free(group);
 	}
 }

@@ -56,7 +56,7 @@ Rien à corriger : notre cible d'évaluation est GNU coreutils.
 
 ## 2. Portabilité macOS
 
-**Statut : FAIT (écrit pour Linux ET macOS). Non recompilé sur Mac ici.**
+**Statut : VALIDÉ SUR MAC (compilé + diff BSD `/bin/ls`, 2026-07-01).**
 
 Toutes les divergences glibc/Linux ↔ BSD/macOS sont isolées derrière des
 macros `#ifdef __APPLE__` dans `includes/ft_ls.h` :
@@ -72,10 +72,25 @@ macros `#ifdef __APPLE__` dans `includes/ft_ls.h` :
   du BSD ls repose sur `<sys/acl.h>`, laissé hors périmètre).
 - **Ligne `total`** : macro `TOTAL_BLOCKS` → `st_blocks / 2` (GNU, blocs 1 Ko)
   vs `st_blocks` (BSD/mac, blocs 512 o).
+- **Espacement des colonnes `-l`** : macro `COL_GAP` → 2 espaces owner→group /
+  group→size (BSD) vs 1 espace (GNU). Corrige un écart de padding constaté sur
+  Mac (`print_owner_group`, `format.c`).
+- **En-tête `-R` d'un dossier-opérande unique** : macro `REC_FORCES_HEADER` →
+  0 (BSD n'imprime pas de header `chemin:` pour un seul dossier) vs 1 (GNU le
+  fait dès `-R`). Utilisée dans `main.c` (`show_header`).
 
-⚠️ Cette machine est sous Linux : les branches `__APPLE__` sont écrites
-d'après l'API documentée mais **non compilées/testées ici**. À revalider
-d'un `make` sur un vrai Mac avant une éval macOS.
+### Validation Mac 2026-07-01 (compilé, comparé à `/bin/ls` BSD, `LC_ALL=C`)
+- `make` clean (`-Wall -Wextra -Werror`, 0 warning) : `st_*timespec`,
+  `getxattr` 6 args + `XATTR_NOFOLLOW`, `major`/`minor` OK.
+- `ls`, `-a`, `-r`, `-t`, `-1`, `-rt`, `-R`, `-aR` : **identiques** au BSD ls.
+- `-l`, `-la`, `-lR` : **identiques** au BSD ls une fois le marqueur `@` retiré
+  (padding parfait après le fix `COL_GAP`).
+
+⚠️ **Limitation restante — marqueur `@`** : sur macOS, quasi tous les fichiers
+portent `com.apple.provenance` (xattr ré-ajouté par l'OS, non supprimable via
+`xattr -c`). Le BSD ls affiche alors `@`, ce qui décale la ligne d'une colonne ;
+`acl_char` ne reconnaît que les ACL POSIX/SELinux → renvoie `' '`. Écart assumé
+hors périmètre (le `@` BSD exigerait `<sys/acl.h>` / `listxattr`).
 
 ---
 

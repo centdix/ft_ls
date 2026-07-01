@@ -38,6 +38,10 @@
 #  define ST_CTIM_NS(st) ((st).st_ctimespec.tv_nsec)
 /* BSD ls : "total" en blocs de 512 o (pas de division). */
 #  define TOTAL_BLOCKS(b) (b)
+/* BSD ls : 2 espaces entre les colonnes owner/group/size du -l. */
+#  define COL_GAP "  "
+/* BSD ls -R : pas d'en-tete "chemin:" pour un dossier-operande unique. */
+#  define REC_FORCES_HEADER 0
 # else
 #  include <sys/sysmacros.h> /* major, minor sous glibc                 */
 #  define ST_ATIM_S(st)  ((st).st_atim.tv_sec)
@@ -48,6 +52,10 @@
 #  define ST_CTIM_NS(st) ((st).st_ctim.tv_nsec)
 /* GNU ls : "total" en blocs de 1 Ko (st_blocks est en unites de 512 o). */
 #  define TOTAL_BLOCKS(b) ((b) / 2)
+/* GNU ls : 1 espace entre les colonnes owner/group/size du -l. */
+#  define COL_GAP " "
+/* GNU ls -R : en-tete "chemin:" meme pour un dossier-operande unique. */
+#  define REC_FORCES_HEADER 1
 # endif
 
 /* Existence d'un attribut etendu SANS suivre les symlinks (>=0 s'il existe).

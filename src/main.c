@@ -22,8 +22,11 @@ int	main(int argc, char **argv)
 	/* printed : a-t-on deja ecrit qqch ? sert a inserer la ligne vide
 	   separatrice entre deux blocs (fichiers, puis chaque dossier). */
 	printed = 0;
-	/* ls ne prefixe "chemin:" que s'il y a plusieurs cibles, ou en -R. */
-	show_header = (ft_lstsize(ls.operands) > 1 || ls.opts.rec);
+	/* ls ne prefixe "chemin:" que s'il y a plusieurs cibles (et, sous GNU
+	   seulement, des l'option -R meme pour une cible unique ; le BSD ls ne le
+	   fait pas pour un dossier-operande unique, cf. REC_FORCES_HEADER). */
+	show_header = (ft_lstsize(ls.operands) > 1
+			|| (ls.opts.rec && REC_FORCES_HEADER));
 	/* ls affiche d'abord TOUS les operandes-fichiers (en bloc), puis les
 	   dossiers : on traite donc les fichiers avant la boucle. */
 	ft_list_file_operands(&ls, &printed);
