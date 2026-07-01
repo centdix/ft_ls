@@ -103,12 +103,17 @@
 #else
 #define X_HAS(path, name) (lgetxattr((path), (name), NULL, 0))
 #define X_LIST(path) (llistxattr((path), NULL, 0))
+// the '.' (security context) is gated on selinux_enabled(): GNU ls only shows
+// it when SELinux is live at runtime (is_selinux_enabled), NOT merely because a
+// security.selinux xattr exists. Without the gate we leak a '.' on e.g. an NFS
+// mount-wide label ('..') that the real ls suppresses.
 #define ACL_CHAR(f)                                                            \
   ((X_HAS((f)->path, "system.posix_acl_access") >= 0 ||                        \
     X_HAS((f)->path, "system.posix_acl_default") >= 0)                         \
        ? '+'                                                                   \
-   : (X_HAS((f)->path, "security.selinux") >= 0 ||                             \
-      X_HAS((f)->path, "security.SMACK64") >= 0)                               \
+   : (selinux_enabled() &&                                                     \
+      (X_HAS((f)->path, "security.selinux") >= 0 ||                            \
+       X_HAS((f)->path, "security.SMACK64") >= 0))                             \
        ? '.'                                                                   \
        : ' ')
 #endif

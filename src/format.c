@@ -168,6 +168,21 @@ static void update_size_width(t_file *f, t_widths *w) {
   free(s);
 }
 
+// GNU ls gates the '.' context marker behind is_selinux_enabled(): if selinuxfs
+// is not mounted, ls never shows '.' even when a security.selinux xattr exists
+// (e.g. an NFS mount-wide label on '..'). We mirror that with a cached stat of
+// the mount point (stat is authorized; access is not).
+#ifndef __APPLE__
+static int selinux_enabled(void) {
+  static int cached = -1;
+  struct stat st;
+
+  if (cached == -1)
+    cached = (stat("/sys/fs/selinux", &st) == 0);
+  return (cached);
+}
+#endif
+
 // bonus: extended-access indicator (11th column of -l). the logic differs
 // GNU ('+'/'.' via POSIX ACL/context) vs BSD ('@' as soon as any xattr is
 // present): it is isolated behind the ACL_CHAR macro (see ft_ls.h). doesn't
