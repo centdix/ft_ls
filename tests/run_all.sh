@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
 # ============================================================================
-#  run_all.sh — matrice de regression : compare ft_ls au vrai ls sur plein
-#  d'invocations, et affiche un resume PASS/FAIL.
+#  run_all.sh - regression matrix: compares ft_ls against the real ls over
+#  many invocations and prints a PASS/FAIL summary.
 #
-#  Pour chaque cas on verifie : stdout identique, stderr identique, meme code
-#  retour. Tout est lance en LC_ALL=C (comme a l'evaluation).
+#  Each case checks: identical stdout, identical stderr, same exit code.
+#  Everything runs under LC_ALL=C (as during evaluation).
 #
 #  Usage:
-#     ./tests/run_all.sh            # resume compact
-#     ./tests/run_all.sh -v         # affiche le diff des cas qui echouent
-#     ./tests/run_all.sh -l         # lance aussi un check valgrind (si dispo)
+#     ./tests/run_all.sh            # compact summary
+#     ./tests/run_all.sh -v         # show the diff of failing cases
+#     ./tests/run_all.sh -l         # also run a valgrind leak check (if present)
 # ============================================================================
 
 cd "$(dirname "$0")/.." || exit 1
@@ -23,11 +23,11 @@ for a in "$@"; do
 done
 
 if [ ! -x "$BIN" ]; then
-	echo "ft_ls pas compile -> 'make' d'abord." >&2
+	echo "ft_ls not built -> run 'make' first." >&2
 	exit 1
 fi
 
-# Arborescence piegeuse
+# Booby-trapped tree (symlinks, permissions, sticky/setuid, old file, ...)
 FIX=/tmp/ft_ls_test
 sh tests/setup_tree.sh >/dev/null 2>&1
 
@@ -35,12 +35,12 @@ PASS=0
 FAIL=0
 FAILED=()
 
-# ls de reference : le VRAI GNU coreutils (cible d'evaluation 42). Sur cette
-# machine /bin/ls est uutils/Rust, qui diverge sur les cas limites (ex: dossier
-# non-traversable -> pas d'erreur ni rc 1). On prefere donc /usr/bin/gnuls s'il
-# existe, invoque avec argv[0]="ls" pour que le prefixe des erreurs soit "ls:"
-# comme le notre. Sur une machine d'eval standard (ou `ls` == GNU), on retombe
-# simplement sur `command ls`.
+# Reference ls: the REAL GNU coreutils (the 42 evaluation target). On some
+# machines /bin/ls is uutils/Rust, which diverges on edge cases (e.g. a
+# non-traversable directory -> no error, no exit code 1). So we prefer
+# /usr/bin/gnuls when present, invoked with argv[0]="ls" so its error prefix
+# is "ls:" like ours. On a standard machine (where `ls` == GNU) we simply fall
+# back to `command ls`.
 if [ -x /usr/bin/gnuls ]; then
 	refls() { bash -c 'exec -a ls /usr/bin/gnuls --color=never "$@"' ls "$@"; }
 else
@@ -50,8 +50,8 @@ fi
 om=$(mktemp); om2=$(mktemp); em=$(mktemp); er=$(mktemp)
 
 # run "description" args...
-# Compare stdout OCTET POUR OCTET (fichiers, pas $(...)) -> detecte les
-# differences de newline final. Compare aussi stderr et le code retour.
+# Compares stdout BYTE FOR BYTE (files, not $(...)) so a trailing-newline
+# difference is caught. Also compares stderr and the exit code.
 run()
 {
 	desc="$1"
@@ -69,18 +69,18 @@ run()
 			echo "FAIL: $desc   (args: $*)"
 			[ "$c_m" != "$c_r" ] && echo "  exit: ft_ls=$c_m  ls=$c_r"
 			if ! diff -q "$om" "$om2" >/dev/null 2>&1; then
-				echo "  --- stdout diff (gauche=ft_ls) ---"
+				echo "  --- stdout diff (left=ft_ls) ---"
 				diff "$om" "$om2" | head -20
 			fi
 			if ! diff -q "$em" "$er" >/dev/null 2>&1; then
-				echo "  --- stderr diff (gauche=ft_ls) ---"
+				echo "  --- stderr diff (left=ft_ls) ---"
 				diff "$em" "$er" | head -10
 			fi
 		fi
 	fi
 }
 
-# ---- 1. cibles / arguments -------------------------------------------------
+# ---- 1. targets / arguments -----------------------------------------------
 run "no args"
 run "dot"                 .
 run "dotdot"              ..
@@ -93,35 +93,35 @@ run "absolute"            /etc
 run "trailing slash"      src/
 run "empty dir"           "$FIX/empty_dir"
 
-# ---- 2. erreurs ------------------------------------------------------------
+# ---- 2. errors ------------------------------------------------------------
 run "nonexistent"         nope_xyz
 run "valid + invalid"     nope_xyz src
 run "invalid option"      -z
 
-# ---- 3. options simples ----------------------------------------------------
+# ---- 3. simple options ----------------------------------------------------
 run "-a"   -a
 run "-r"   -r
 run "-t"   -t
 run "-l"   -l
 run "-R"   -R
 
-# ---- 4. combinaisons -------------------------------------------------------
+# ---- 4. combinations ------------------------------------------------------
 for o in -la -lr -lt -lR -ar -at -rt -tr -laR -lart -laRt; do
 	run "$o (cwd)"  "$o"
 	run "$o /etc"   "$o" /etc
 done
 
-# ---- 5. fixture piegeuse (symlinks, droits, sticky, vieux fichier) ---------
+# ---- 5. booby-trapped fixture (symlinks, perms, sticky, old file) ---------
 run "fixture -la"   -la  "$FIX"
 run "fixture -lR"   -lR  "$FIX"
 run "fixture -laR"  -laR "$FIX"
 run "fixture -lt"   -lt  "$FIX"
 
-# ---- 5b. dossier lisible mais non-traversable (chmod 600) ------------------
-# readdir renvoie les noms mais lstat de chaque entree echoue (EACCES). GNU
-# affiche alors des '?' dans chaque colonne -l/-i, une erreur "cannot access"
-# par entree sur stderr, et sort en 1. Un listing court (sans -l/-i) ne stat
-# rien -> aucune erreur, sortie 0.
+# ---- 5b. readable but non-traversable directory (chmod 600) ---------------
+# readdir returns the names but lstat of each entry fails (EACCES). GNU then
+# prints '?' in every -l/-i column, one "cannot access" error per entry on
+# stderr, and exits 1. A short listing (no -l/-i) stats nothing -> no error,
+# exit 0.
 LOCK=/tmp/ft_ls_locked
 rm -rf "$LOCK"; mkdir -p "$LOCK"; : >"$LOCK/alpha"; : >"$LOCK/beta"; printf 'x\n' >"$LOCK/gamma"
 chmod 600 "$LOCK"
@@ -135,32 +135,32 @@ run "locked short"        "$LOCK"
 run "locked -R"      -R   "$LOCK"
 chmod 700 "$LOCK"; rm -rf "$LOCK"
 
-# ---- 6. gros dossiers ------------------------------------------------------
+# ---- 6. big directories ---------------------------------------------------
 run "big /usr/lib"  /usr/lib
 run "big -la /usr/bin" -la /usr/bin
 
-# ---- resume ----------------------------------------------------------------
+# ---- summary --------------------------------------------------------------
 echo "============================================================"
 echo "  PASS=$PASS   FAIL=$FAIL"
 if [ "$FAIL" -gt 0 ]; then
-	echo "  Cas en echec :"
+	echo "  Failing cases:"
 	for f in "${FAILED[@]}"; do
 		echo "    - $f"
 	done
-	[ "$VERBOSE" = "0" ] && echo "  (relance avec -v pour voir les diffs)"
+	[ "$VERBOSE" = "0" ] && echo "  (re-run with -v to see the diffs)"
 fi
 
-# ---- valgrind optionnel ----------------------------------------------------
+# ---- optional valgrind ----------------------------------------------------
 if [ "$DOLEAKS" = "1" ]; then
 	echo "============================================================"
 	if command -v valgrind >/dev/null 2>&1; then
 		for args in "-laR $FIX" "-laR /etc"; do
 			LC_ALL=C valgrind -q --leak-check=full --error-exitcode=42 \
 				$BIN $args >/dev/null 2>/tmp/vg && \
-				echo "  [OK leaks] $args" || echo "  [KO leaks] $args (voir /tmp/vg)"
+				echo "  [OK leaks] $args" || echo "  [KO leaks] $args (see /tmp/vg)"
 		done
 	else
-		echo "  valgrind non installe -> check fuites saute"
+		echo "  valgrind not installed -> leak check skipped"
 	fi
 fi
 

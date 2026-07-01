@@ -1,10 +1,9 @@
 #!/bin/sh
 # ============================================================================
-#  setup_tree.sh — cree une arborescence piegeuse pour tester ft_ls
-#
-#  Genere /tmp/ft_ls_test avec : fichiers caches, sous-dossiers (pour -R),
-#  liens symboliques (dont un casse), droits varies, sticky/setuid bits,
-#  noms a tri delicat (majuscules/minuscules), fichier ancien (date > 6 mois).
+#  setup_tree.sh - builds a booby-trapped tree under /tmp/ft_ls_test to
+#  exercise ft_ls: hidden files, subdirectories (for -R), symlinks (one
+#  broken), varied permissions, sticky/setuid bits, tricky-to-sort names
+#  (upper/lower case), and an old file (mtime > 6 months).
 #
 #  Usage:
 #     ./tests/setup_tree.sh
@@ -15,35 +14,35 @@ ROOT=/tmp/ft_ls_test
 rm -rf "$ROOT"
 mkdir -p "$ROOT"/sub1/sub2 "$ROOT"/empty_dir
 
-# Fichiers ordinaires + tri majuscules/minuscules (LC_ALL=C => MAJ avant min)
+# Regular files + upper/lower sort (LC_ALL=C => uppercase before lowercase)
 printf 'a\n'   > "$ROOT/Bravo"
 printf 'bb\n'  > "$ROOT/alpha"
 printf 'ccc\n' > "$ROOT/Charlie"
-printf 'd\n'   > "$ROOT/.cache_cache"      # fichier cache
+printf 'd\n'   > "$ROOT/.cache_cache"      # hidden file
 
-# Tailles differentes pour tester l'alignement des colonnes en -l
-head -c 100000 /dev/zero > "$ROOT/gros_fichier" 2>/dev/null
+# Different sizes to test -l column alignment
+head -c 100000 /dev/zero > "$ROOT/big_file" 2>/dev/null
 
-# Liens symboliques (-l doit afficher "lien -> cible")
-ln -s alpha          "$ROOT/lien_ok"
-ln -s n_existe_pas   "$ROOT/lien_casse"
+# Symlinks (-l must print "link -> target")
+ln -s alpha          "$ROOT/link_ok"
+ln -s does_not_exist "$ROOT/link_broken"
 
-# Droits varies
+# Varied permissions
 chmod 700 "$ROOT/Bravo"
 chmod 644 "$ROOT/alpha"
 chmod 755 "$ROOT/Charlie"
 
-# Bits speciaux (sticky / setuid) -> caracteres s / t dans les droits
-chmod +t  "$ROOT/empty_dir"     2>/dev/null
-chmod u+s "$ROOT/gros_fichier"  2>/dev/null
+# Special bits (sticky / setuid) -> s / t characters in the mode string
+chmod +t  "$ROOT/empty_dir"  2>/dev/null
+chmod u+s "$ROOT/big_file"   2>/dev/null
 
-# Contenu des sous-dossiers (pour -R)
+# Subdirectory contents (for -R)
 printf 'x\n' > "$ROOT/sub1/file_in_sub1"
 printf 'y\n' > "$ROOT/sub1/sub2/file_in_sub2"
 
-# Fichier "ancien" -> ls doit afficher l'annee au lieu de l'heure
-touch -d '2 years ago' "$ROOT/vieux_fichier" 2>/dev/null \
-	|| touch -t 202001010000 "$ROOT/vieux_fichier" 2>/dev/null
+# "Old" file -> ls must print the year instead of the time
+touch -d '2 years ago' "$ROOT/old_file" 2>/dev/null \
+	|| touch -t 202001010000 "$ROOT/old_file" 2>/dev/null
 
-echo "Arborescence de test prete : $ROOT"
-echo "Teste avec :  ./tests/compare.sh -laR $ROOT"
+echo "Test tree ready: $ROOT"
+echo "Try with:  ./tests/compare.sh -laR $ROOT"

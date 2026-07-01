@@ -1,20 +1,20 @@
 #!/bin/sh
 # ============================================================================
-#  leaks.sh — verifie l'absence de fuites memoire avec valgrind
+#  leaks.sh - checks for memory leaks with valgrind
 #
 #  Usage:
-#     ./tests/leaks.sh [OPTIONS_ET_CHEMINS...]
+#     ./tests/leaks.sh [OPTIONS_AND_PATHS...]
 #
-#  Exemple:
+#  Example:
 #     ./tests/leaks.sh -laR /etc
 #
-#  Exige 0 fuite ET 0 erreur (--error-exitcode=42).
+#  Requires 0 leaks AND 0 errors (--error-exitcode=42).
 # ============================================================================
 
 BIN=./ft_ls
 
 if ! command -v valgrind >/dev/null 2>&1; then
-	echo "valgrind n'est pas installe." >&2
+	echo "valgrind is not installed." >&2
 	exit 1
 fi
 
@@ -28,7 +28,7 @@ LC_ALL=C valgrind \
 status=$?
 echo "-----------------------------------------"
 if [ "$status" = "42" ]; then
-	echo "  [KO] fuites ou erreurs memoire detectees"
+	echo "  [KO] memory leaks or errors detected"
 else
-	echo "  [OK] aucune fuite / erreur memoire"
+	echo "  [OK] no memory leak / error"
 fi
