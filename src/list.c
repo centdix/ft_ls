@@ -1,9 +1,5 @@
-/* list.c — listing d'un dossier (lecture, affichage, recursion -R) et messages
-   d'erreur facon ls. */
-
 #include "ft_ls.h"
 
-/* Construit "dir/name" (la libft n'a qu'un ft_strjoin a 2 arguments). */
 static char *path_join(char *dir, char *name) {
   char *tmp;
   char *res;
@@ -16,8 +12,6 @@ static char *path_join(char *dir, char *name) {
   return (res);
 }
 
-/* Erreur facon ls sur stderr : "ls: <reason> '<path>': <strerror>". Prefixe
-   "ls" (et non "ft_ls") pour matcher la sortie comparee dans tests/. */
 static void ls_error(char *path, char *reason, int err) {
   ft_putstr_fd("ls: ", 2);
   ERR_REASON(reason);
@@ -28,8 +22,7 @@ static void ls_error(char *path, char *reason, int err) {
   ft_putstr_fd("\n", 2);
 }
 
-/* Faut-il afficher cette entree ? -a : tout ; -A : tout sauf "." et ".." ;
-   defaut : rien de ce qui commence par '.'. */
+// -a: everything; -A: all but "." and ".."; default: hide dotfiles
 static int show_entry(char *name, t_opts *opts) {
   if (name[0] != '.')
     return (1);
@@ -41,10 +34,8 @@ static int show_entry(char *name, t_opts *opts) {
   return (0);
 }
 
-/* Cree un t_file pour une entree de dossier ; NULL si une allocation echoue
-   (name/path/malloc). #3 : si lstat echoue (fichier disparu, droits perdus),
-   on met st a zero -> pas de lecture de champs non initialises. NB : GNU
-   afficherait des '?' dans les colonnes -l ; ce rendu exact est postpose. */
+// t_file for a dir entry; NULL on alloc failure. zero st if lstat fails
+// (vanished file / lost perms) so we never read uninitialized fields
 static t_file *make_entry(char *path, char *name) {
   t_file *file;
 
@@ -58,7 +49,7 @@ static t_file *make_entry(char *path, char *name) {
     ft_free_file(file);
     return (NULL);
   }
-  /* lstat (pas stat) : on decrit le lien lui-meme, pas sa cible. */
+  // lstat, not stat: describe the link itself, not its target
   if (lstat(file->path, &file->st) != 0)
     ft_bzero(&file->st, sizeof(file->st));
   return (file);
@@ -88,8 +79,6 @@ t_list *ft_extract_entries(DIR *dir, char *path, t_opts *opts) {
     }
     errno = 0;
   }
-  /* #6 : readdir renvoie NULL en fin de dossier ET sur erreur -> errno
-     distingue les deux (remis a 0 avant chaque lecture). */
   if (errno != 0)
     ls_error(path, "reading directory", errno);
   return (entries);
@@ -104,7 +93,6 @@ void ft_free_file(void *content) {
   free(file);
 }
 
-/* t_file a partir d'un operande deja stat (durci : NULL si strdup echoue). */
 static t_file *make_operand(t_path *op) {
   t_file *f;
 
@@ -122,10 +110,7 @@ static t_file *make_operand(t_path *op) {
   return (f);
 }
 
-/* Convertit chaque operande valide (fichier ET dossier) en t_file. Les
-   dossiers sont inclus car GNU calcule les largeurs de colonnes du bloc
-   -l sur TOUS les operandes (ex "ls -l *"), meme s'ils ne sont pas imprimes
-   ici (les dossiers sont listes ensuite, a part). */
+// convert valid operands (files and directories) to t_file
 static t_list *collect_operand_files(t_list *operands) {
   t_list *all;
   t_file *f;
@@ -148,13 +133,11 @@ static t_list *collect_operand_files(t_list *operands) {
   return (all);
 }
 
-/* En -d chaque operande (dossier compris) est une entree a imprimer ; sinon
-   seuls les non-dossiers le sont ici (les dossiers sont listes a part). */
 static int printable(t_file *f, t_opts *opts) {
   return (opts->dironly || !S_ISDIR(f->st.st_mode));
 }
 
-/* Y a-t-il au moins une entree a afficher dans le bloc operandes ? */
+// there is at least one entry to display in the operands block
 static int has_printable(t_list *all, t_opts *opts) {
   while (all) {
     if (printable(all->content, opts))
@@ -164,7 +147,7 @@ static int has_printable(t_list *all, t_opts *opts) {
   return (0);
 }
 
-/* Imprime le bloc des operandes, largeurs deja calculees sur l'ensemble. */
+// print the operands block, widths already calculated on the entire set
 static void print_operand_files(t_list *all, t_opts *opts, t_widths *w) {
   t_file *f;
 
@@ -180,9 +163,6 @@ static void print_operand_files(t_list *all, t_opts *opts, t_widths *w) {
   }
 }
 
-/* Operandes affiches en bloc (avant les dossiers a developper), sans en-tete
-   ni ligne "total". Alignement calcule sur l'ensemble des operandes (dossiers
-   inclus) comme GNU. En -d, les dossiers-operandes sont eux aussi imprimes. */
 void ft_list_file_operands(t_ls *ls, int *printed) {
   t_list *all;
   t_widths w;
@@ -214,10 +194,8 @@ int ft_print_access_errors(t_list *paths) {
   return (err);
 }
 
-/* Liste un dossier : separateur + en-tete eventuel + contenu trie, puis
-   redescend dans chaque sous-dossier si -R. Renvoie le niveau d'erreur facon
-   ls (0 = ok) ; is_arg distingue un operande (echec -> RC_ERR, GNU 2 / BSD 1)
-   d'un sous-dossier de recursion (echec -> 1). Le max remonte a l'appelant. */
+// list a directory: separator + optional header + sorted content, then recurse
+// if -R.
 int ft_list_one_dir(char *path, t_opts *opts, int header, int *printed,
                     int is_arg) {
   DIR *dir;
@@ -231,14 +209,14 @@ int ft_list_one_dir(char *path, t_opts *opts, int header, int *printed,
     ls_error(path, "cannot open directory", errno);
     return (is_arg ? RC_ERR : 1);
   }
-  /* ligne vide separatrice si un bloc a deja ete imprime avant celui-ci. */
+  // blank separator line if a block was already printed before this one
   if (*printed)
     ft_printf("\n");
   if (header)
     ft_printf("%s:\n", path);
   entries = ft_extract_entries(dir, path, opts);
   ft_sort_list(entries, opts);
-  /* 1 = imprimer "total" : c'est le contenu d'un dossier. */
+  // 1 = print the "total" line (this is a directory's content)
   if (opts->list)
     ft_print_long_list(entries, 1, opts);
   else
@@ -248,10 +226,7 @@ int ft_list_one_dir(char *path, t_opts *opts, int header, int *printed,
   cur = entries;
   while (opts->rec && cur) {
     file = cur->content;
-    /* on ne redescend que dans les vrais sous-dossiers ; ignorer "." et
-       ".." evite la recursion infinie (et les symlinks ne sont pas des
-       dossiers via lstat, donc pas suivis). Un echec de sous-dossier
-       remonte en niveau 1, cumule via le max. */
+    // recurse if -R
     if (S_ISDIR(file->st.st_mode) && ft_strncmp(file->name, ".", 2) != 0 &&
         ft_strncmp(file->name, "..", 3) != 0 &&
         ft_list_one_dir(file->path, opts, 1, printed, 0) > err)
