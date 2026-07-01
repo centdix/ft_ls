@@ -53,7 +53,7 @@ dossiers de test sans timestamps identiques → peut ne jamais se voir).
 
 **Statut : OK sous Linux (cible actuelle), à adapter si test sur Mac.**
 
-`cmp_time` (src/utils.c) lit les nanosecondes via `st.st_mtim.tv_nsec`
+`cmp_mtime` (src/sort.c) lit les nanosecondes via `st.st_mtim.tv_nsec`
 (orthographe **Linux / POSIX.1-2008**). Sur **macOS** le champ s'appelle
 `st_mtimespec.tv_nsec`.
 

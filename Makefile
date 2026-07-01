@@ -21,7 +21,8 @@ SRC_DIR		= src
 SRCS		= $(SRC_DIR)/main.c \
 			  $(SRC_DIR)/parse.c \
 			  $(SRC_DIR)/sort.c \
-			  $(SRC_DIR)/list.c
+			  $(SRC_DIR)/list.c \
+			  $(SRC_DIR)/format.c
 OBJS		= $(SRCS:.c=.o)
 
 HEADER		= includes/ft_ls.h

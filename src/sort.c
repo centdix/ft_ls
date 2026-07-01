@@ -29,7 +29,7 @@ static int	cmp_files(t_file *a, t_file *b, t_sort_by by)
 }
 
 /* Tri a bulles : on echange le contenu des noeuds, pas les noeuds eux-memes. */
-int	ft_sort_list(t_list *lst, t_opts *opts)
+int	ft_sort_list(t_list *lst, int by_time, int rev)
 {
 	t_sort_by	by;
 	t_list		*cur;
@@ -39,7 +39,7 @@ int	ft_sort_list(t_list *lst, t_opts *opts)
 
 	if (!lst)
 		return (0);
-	by = opts->time ? TIME : NAME;
+	by = by_time ? TIME : NAME;
 	swapped = 1;
 	while (swapped)
 	{
@@ -48,7 +48,7 @@ int	ft_sort_list(t_list *lst, t_opts *opts)
 		while (cur->next)
 		{
 			cmp = cmp_files(cur->content, cur->next->content, by);
-			if (opts->rev)
+			if (rev)
 				cmp = -cmp;
 			if (cmp > 0)
 			{
@@ -65,23 +65,23 @@ int	ft_sort_list(t_list *lst, t_opts *opts)
 
 /* Ordre des operandes facon ls : fichiers avant dossiers (groupage jamais
    inverse par -r), puis cle active (nom, ou date si -t) dans chaque groupe. */
-static int	cmp_paths(t_path *a, t_path *b, t_opts *opts)
+static int	cmp_paths(t_path *a, t_path *b, int by_time, int rev)
 {
 	int	cmp;
 
 	if (a->type != b->type)
 		return ((int)a->type - (int)b->type);
 	cmp = 0;
-	if (opts->time)
+	if (by_time)
 		cmp = cmp_mtime(&a->st, &b->st);
 	if (cmp == 0)
 		cmp = ft_strncmp(a->path, b->path, ft_strlen(a->path) + 1);
-	if (opts->rev)
+	if (rev)
 		cmp = -cmp;
 	return (cmp);
 }
 
-void	ft_sort_paths(t_list *paths, t_opts *opts)
+void	ft_sort_paths(t_list *paths, int by_time, int rev)
 {
 	t_list	*cur;
 	void	*swap;
@@ -96,7 +96,7 @@ void	ft_sort_paths(t_list *paths, t_opts *opts)
 		cur = paths;
 		while (cur->next)
 		{
-			if (cmp_paths(cur->content, cur->next->content, opts) > 0)
+			if (cmp_paths(cur->content, cur->next->content, by_time, rev) > 0)
 			{
 				swap = cur->content;
 				cur->content = cur->next->content;

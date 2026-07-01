@@ -44,33 +44,27 @@ static t_path	*new_path(char *str)
 	return (op);
 }
 
-t_opts	ft_parse_opts(int argc, char **argv)
+t_ls	ft_parse_args(int argc, char **argv)
 {
-	t_opts	opts;
+	t_ls	ls;
 	int		i;
-	int		nb_operands;
 
-	ft_bzero(&opts, sizeof(opts));
-	nb_operands = 0;
+	ft_bzero(&ls.opts, sizeof(ls.opts));
+	ls.operands = NULL;
 	i = 1;
 	while (i < argc)
 	{
+		/* "-xxx" = options ; "-" seul reste un operande (nom de fichier). */
 		if (argv[i][0] == '-' && argv[i][1])
-			parse_flags(argv[i], &opts);
+			parse_flags(argv[i], &ls.opts);
 		else
-		{
-			ft_lstadd_back(&opts.paths, ft_lstnew(new_path(argv[i])));
-			nb_operands++;
-		}
+			ft_lstadd_back(&ls.operands, ft_lstnew(new_path(argv[i])));
 		i++;
 	}
-	if (nb_operands == 0)
-	{
-		ft_lstadd_back(&opts.paths, ft_lstnew(new_path(".")));
-		nb_operands = 1;
-	}
-	opts.paths_count = nb_operands;
-	return (opts);
+	/* aucun operande fourni -> ls liste le repertoire courant. */
+	if (!ls.operands)
+		ft_lstadd_back(&ls.operands, ft_lstnew(new_path(".")));
+	return (ls);
 }
 
 /* Libere le t_path mais pas op->path (qui pointe dans argv). */

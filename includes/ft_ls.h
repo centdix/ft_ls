@@ -14,8 +14,9 @@
 # include <dirent.h>     /* opendir, readdir, closedir, DIR        */
 
 /* --- metadonnees des fichiers --- */
-# include <sys/stat.h>   /* stat, lstat, struct stat, S_IS*, S_I*  */
+# include <sys/stat.h>      /* stat, lstat, struct stat, S_IS*, S_I*  */
 # include <sys/types.h>
+# include <sys/sysmacros.h> /* major, minor (fichiers de peripherique)*/
 
 /* --- traductions uid/gid, dates, liens --- */
 # include <pwd.h>        /* getpwuid                               */
@@ -55,30 +56,53 @@ typedef struct s_file
 	struct stat	st;
 }	t_file;
 
+/* Options de comportement (uniquement les flags de la ligne de commande). */
 typedef struct s_opts
 {
-	int		list;	/* -l : format long          */
-	int		rec;	/* -R : recursif             */
-	int		all;	/* -a : fichiers caches      */
-	int		rev;	/* -r : ordre inverse        */
-	int		time;	/* -t : tri par date         */
-	t_list	*paths;	/* liste chainee de (t_path *) */
-	int		paths_count;
+	int	list;	/* -l : format long     */
+	int	rec;	/* -R : recursif        */
+	int	all;	/* -a : fichiers caches */
+	int	rev;	/* -r : ordre inverse   */
+	int	time;	/* -t : tri par date    */
 }	t_opts;
 
+/* Contexte complet : les flags + la liste des operandes (cibles) a lister. */
+typedef struct s_ls
+{
+	t_opts	opts;
+	t_list	*operands;	/* liste chainee de (t_path *) */
+}	t_ls;
+
+/* Largeurs de colonnes du format -l (calculees sur l'ensemble des entrees
+   pour aligner les colonnes). Pour les peripheriques, la colonne "size"
+   accueille "major, minor" -> on suit aussi major/minor separement. */
+typedef struct s_widths
+{
+	int	links;
+	int	owner;
+	int	group;
+	int	size;
+	int	major;
+	int	minor;
+}	t_widths;
+
 /* --- parse.c : lecture de la ligne de commande --- */
-t_opts	ft_parse_opts(int argc, char **argv);
+t_ls	ft_parse_args(int argc, char **argv);
 void	ft_free_path(void *content);
 
-/* --- sort.c : tri des entrees et des operandes --- */
-int		ft_sort_list(t_list *lst, t_opts *opts);
-void	ft_sort_paths(t_list *paths, t_opts *opts);
+/* --- sort.c : tri des entrees et des operandes (by_time = -t, rev = -r) --- */
+int		ft_sort_list(t_list *lst, int by_time, int rev);
+void	ft_sort_paths(t_list *paths, int by_time, int rev);
+
+/* --- format.c : rendu du format long (-l) --- */
+void	ft_print_long_list(t_list *entries, int show_total);
 
 /* --- list.c : listing d'un dossier et erreurs --- */
-t_list	*ft_extract_entries(DIR *dir, char *path, t_opts *opts);
+t_list	*ft_extract_entries(DIR *dir, char *path, int all);
 int		ft_print_list(t_list *lst);
 void	ft_free_file(void *content);
 int		ft_print_access_errors(t_list *paths);
 int		ft_list_one_dir(char *path, t_opts *opts, int header, int *printed);
+void	ft_list_file_operands(t_ls *ls, int *printed);
 
 #endif

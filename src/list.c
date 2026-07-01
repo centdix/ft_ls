@@ -17,7 +17,7 @@ static char	*path_join(char *dir, char *name)
 	return (res);
 }
 
-t_list	*ft_extract_entries(DIR *dir, char *path, t_opts *opts)
+t_list	*ft_extract_entries(DIR *dir, char *path, int all)
 {
 	t_list			*entries;
 	struct dirent	*entry;
@@ -26,7 +26,7 @@ t_list	*ft_extract_entries(DIR *dir, char *path, t_opts *opts)
 	entries = NULL;
 	while ((entry = readdir(dir)) != NULL)
 	{
-		if (!opts->all && entry->d_name[0] == '.')
+		if (!all && entry->d_name[0] == '.')
 			continue ;
 		file = malloc(sizeof(t_file));
 		if (!file)
@@ -75,6 +75,40 @@ static void	ls_error(char *path, char *reason, int err)
 	ft_putstr_fd("\n", 2);
 }
 
+/* Operandes "fichiers" (non-dossiers) : ls les affiche groupes, avant les
+   dossiers, sans en-tete ni ligne "total". Alignement -l partage entre eux. */
+void	ft_list_file_operands(t_ls *ls, int *printed)
+{
+	t_list	*files;
+	t_list	*node;
+	t_path	*op;
+	t_file	*f;
+
+	files = NULL;
+	node = ls->operands;
+	while (node)
+	{
+		op = node->content;
+		if (op->staterr == 0 && op->type == PATH_FILE)
+		{
+			f = malloc(sizeof(t_file));
+			f->name = ft_strdup(op->path);
+			f->path = ft_strdup(op->path);
+			f->st = op->st;
+			ft_lstadd_back(&files, ft_lstnew(f));
+		}
+		node = node->next;
+	}
+	if (!files)
+		return ;
+	if (ls->opts.list)
+		ft_print_long_list(files, 0);
+	else
+		ft_print_list(files);
+	*printed = 1;
+	ft_lstclear(&files, ft_free_file);
+}
+
 /* Passe 1 : erreurs d'acces aux operandes, en ordre argv, avant le tri. */
 int	ft_print_access_errors(t_list *paths)
 {
@@ -114,9 +148,12 @@ int	ft_list_one_dir(char *path, t_opts *opts, int header, int *printed)
 		ft_printf("\n");
 	if (header)
 		ft_printf("%s:\n", path);
-	entries = ft_extract_entries(dir, path, opts);
-	ft_sort_list(entries, opts);
-	ft_print_list(entries);
+	entries = ft_extract_entries(dir, path, opts->all);
+	ft_sort_list(entries, opts->time, opts->rev);
+	if (opts->list)
+		ft_print_long_list(entries, 1);
+	else
+		ft_print_list(entries);
 	*printed = 1;
 	cur = entries;
 	while (opts->rec && cur)
