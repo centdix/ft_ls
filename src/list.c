@@ -80,23 +80,21 @@ static void	ls_error(char *path, char *reason, int err)
 	ft_putstr_fd("\n", 2);
 }
 
-/* Operandes "fichiers" (non-dossiers) : ls les affiche groupes, avant les
-   dossiers, sans en-tete ni ligne "total". Alignement -l partage entre eux. */
-void	ft_list_file_operands(t_ls *ls, int *printed)
+/* Convertit chaque operande valide (fichier ET dossier) en t_file. Les
+   dossiers sont inclus car GNU calcule les largeurs de colonnes du bloc
+   -l sur TOUS les operandes (ex "ls -l *"), meme s'ils ne sont pas imprimes
+   ici (les dossiers sont listes ensuite, a part). */
+static t_list	*collect_operand_files(t_list *operands)
 {
-	t_list	*files;
-	t_list	*node;
+	t_list	*all;
 	t_path	*op;
 	t_file	*f;
 
-	files = NULL;
-	node = ls->operands;
-	while (node)
+	all = NULL;
+	while (operands)
 	{
-		/* on convertit les operandes-fichiers en t_file pour reutiliser les
-		   memes afficheurs que le contenu des dossiers (alignement -l inclus). */
-		op = node->content;
-		if (op->staterr == 0 && op->type == PATH_FILE)
+		op = operands->content;
+		if (op->staterr == 0)
 		{
 			f = malloc(sizeof(t_file));
 			if (f)
@@ -104,20 +102,64 @@ void	ft_list_file_operands(t_ls *ls, int *printed)
 				f->name = ft_strdup(op->path);
 				f->path = ft_strdup(op->path);
 				f->st = op->st;
-				ft_lstadd_back(&files, ft_lstnew(f));
+				ft_lstadd_back(&all, ft_lstnew(f));
 			}
 		}
-		node = node->next;
+		operands = operands->next;
 	}
-	if (!files)
+	return (all);
+}
+
+/* Y a-t-il au moins un operande non-dossier a afficher dans le bloc ? */
+static int	has_nondir(t_list *all)
+{
+	while (all)
+	{
+		if (!S_ISDIR(((t_file *)all->content)->st.st_mode))
+			return (1);
+		all = all->next;
+	}
+	return (0);
+}
+
+/* Imprime le bloc des operandes non-dossiers, avec largeurs deja calculees
+   (sur l'ensemble des operandes). Les dossiers sont sautes ici. */
+static void	print_operand_files(t_list *all, int longfmt, t_widths *w)
+{
+	t_file	*f;
+
+	while (all)
+	{
+		f = all->content;
+		if (!S_ISDIR(f->st.st_mode))
+		{
+			if (longfmt)
+				ft_print_long_line_pub(f, w);
+			else
+				ft_printf("%s\n", f->name);
+		}
+		all = all->next;
+	}
+}
+
+/* Operandes "fichiers" (non-dossiers) : ls les affiche groupes, avant les
+   dossiers, sans en-tete ni ligne "total". Alignement -l partage, calcule
+   sur l'ensemble des operandes (dossiers inclus) comme GNU. */
+void	ft_list_file_operands(t_ls *ls, int *printed)
+{
+	t_list		*all;
+	t_widths	w;
+
+	all = collect_operand_files(ls->operands);
+	if (!has_nondir(all))
+	{
+		ft_lstclear(&all, ft_free_file);
 		return ;
-	/* 0 = pas de ligne "total" : elle n'apparait que pour un contenu de dossier. */
-	if (ls->opts.list)
-		ft_print_long_list(files, 0);
-	else
-		ft_print_list(files);
+	}
+	ft_calc_widths(all, &w);
+	print_operand_files(all, ls->opts.list, &w);
 	*printed = 1;
-	ft_lstclear(&files, ft_free_file);
+	ft_lstclear(&all, ft_free_file);
 }
 
 /* Passe 1 : erreurs d'acces aux operandes, en ordre argv, avant le tri. */

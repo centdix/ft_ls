@@ -261,33 +261,55 @@ static void	print_long_line(t_file *f, t_widths *w)
 	free(group);
 }
 
+/* Calcule les largeurs de colonnes du -l sur l'ensemble des entrees fournies
+   (1re passe, avant toute impression). La colonne "size" doit accueillir
+   "major, minor" en entier : major + ", " (2 car.) + minor, comme GNU ls. */
+void	ft_calc_widths(t_list *entries, t_widths *w)
+{
+	*w = (t_widths){0, 0, 0, 0, 0, 0};
+	while (entries)
+	{
+		update_widths(entries->content, w);
+		entries = entries->next;
+	}
+	if (w->major > 0 && w->major + 2 + w->minor > w->size)
+		w->size = w->major + 2 + w->minor;
+}
+
+/* Cumul des blocs (pour la ligne "total"). st_blocks est en unites de 512 o. */
+static unsigned long	sum_blocks(t_list *entries)
+{
+	unsigned long	blocks;
+
+	blocks = 0;
+	while (entries)
+	{
+		blocks += ((t_file *)entries->content)->st.st_blocks;
+		entries = entries->next;
+	}
+	return (blocks);
+}
+
+/* Imprime une entree deja preparee avec des largeurs precalculees (utilise
+   pour le bloc des operandes-fichiers, dont les largeurs incluent aussi les
+   dossiers-operandes, facon GNU). */
+void	ft_print_long_line_pub(t_file *f, t_widths *w)
+{
+	print_long_line(f, w);
+}
+
 void	ft_print_long_list(t_list *entries, int show_total)
 {
-	t_widths		w;
-	t_list			*cur;
-	unsigned long	blocks;
-	char			*nbr;
+	t_widths	w;
+	t_list		*cur;
+	char		*nbr;
 
-	/* 1re passe : largeurs de colonnes + cumul des blocs (alignement avant
-	   toute impression). entries peut etre NULL -> dossier vide, "total 0". */
-	w = (t_widths){0, 0, 0, 0, 0, 0};
-	blocks = 0;
-	cur = entries;
-	while (cur)
-	{
-		update_widths(cur->content, &w);
-		blocks += ((t_file *)cur->content)->st.st_blocks;
-		cur = cur->next;
-	}
-	/* La colonne "size" doit accueillir "major, minor" en entier : major +
-	   ", " (2 caracteres) + minor, comme GNU ls (sinon les lignes non-device
-	   sont paddees 1 caractere trop court). */
-	if (w.major > 0 && w.major + 2 + w.minor > w.size)
-		w.size = w.major + 2 + w.minor;
-	/* st_blocks est en unites de 512 o ; ls affiche des blocs de 1 Ko -> /2. */
+	/* entries peut etre NULL -> dossier vide, "total 0". */
+	ft_calc_widths(entries, &w);
+	/* ls affiche des blocs de 1 Ko -> /2. */
 	if (show_total)
 	{
-		nbr = nbr_to_str(blocks / 2);
+		nbr = nbr_to_str(sum_blocks(entries) / 2);
 		ft_printf("total %s\n", nbr);
 		free(nbr);
 	}

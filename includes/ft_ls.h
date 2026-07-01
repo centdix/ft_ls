@@ -96,6 +96,8 @@ void	ft_sort_paths(t_list *paths, int by_time, int rev);
 
 /* --- format.c : rendu du format long (-l) --- */
 void	ft_print_long_list(t_list *entries, int show_total);
+void	ft_calc_widths(t_list *entries, t_widths *w);
+void	ft_print_long_line_pub(t_file *f, t_widths *w);
 
 /* --- list.c : listing d'un dossier et erreurs --- */
 t_list	*ft_extract_entries(DIR *dir, char *path, int all);

@@ -49,8 +49,9 @@ static void	parse_flags(char *arg, t_opts *opts)
 	}
 }
 
-/* Cree un t_path pour un operande. stat() suit les symlinks (comme ls le fait
-   pour ses arguments) ; op->path pointe dans argv, donc rien a liberer. */
+/* Cree un t_path pour un operande (sans stat : les options peuvent suivre
+   l'operande dans argv, ex "ls /bin -l" -> on stat apres le parse complet).
+   op->path pointe dans argv, donc rien a liberer. */
 static t_path	*new_path(char *str)
 {
 	t_path	*op;
@@ -62,11 +63,47 @@ static t_path	*new_path(char *str)
 	op->type = PATH_FILE;
 	op->staterr = 0;
 	ft_bzero(&op->st, sizeof(op->st));
-	if (stat(str, &op->st) != 0)
-		op->staterr = errno;
-	else if (S_ISDIR(op->st.st_mode))
-		op->type = PATH_DIR;
 	return (op);
+}
+
+/* Renseigne st/type/staterr d'un operande facon ls. En format long (-l), un
+   symlink-argument N'EST PAS suivi (on affiche le lien) sauf slash final ;
+   sinon on suit le lien et, s'il est casse (stat KO), on retombe sur lstat
+   pour l'afficher quand meme (code retour 0, comme ls). */
+static void	stat_operand(t_path *op, int longfmt)
+{
+	size_t	len;
+
+	len = ft_strlen(op->path);
+	if (longfmt && len > 0 && op->path[len - 1] != '/')
+	{
+		if (lstat(op->path, &op->st) != 0)
+			op->staterr = errno;
+		else if (S_ISDIR(op->st.st_mode))
+			op->type = PATH_DIR;
+		return ;
+	}
+	if (stat(op->path, &op->st) == 0)
+	{
+		if (S_ISDIR(op->st.st_mode))
+			op->type = PATH_DIR;
+	}
+	else if (lstat(op->path, &op->st) != 0)
+		op->staterr = errno;
+}
+
+/* Passe de stat sur tous les operandes, une fois toutes les options connues. */
+static void	stat_operands(t_list *ops, int longfmt)
+{
+	t_path	*op;
+
+	while (ops)
+	{
+		op = ops->content;
+		if (op)
+			stat_operand(op, longfmt);
+		ops = ops->next;
+	}
 }
 
 /* Ajoute un operande a la liste, en gerant proprement l'echec d'allocation
@@ -114,6 +151,9 @@ t_ls	ft_parse_args(int argc, char **argv)
 	/* aucun operande fourni -> ls liste le repertoire courant. */
 	if (!ls.operands)
 		add_operand(&ls.operands, ".");
+	/* stat differe : toutes les options sont maintenant connues (-l influe
+	   sur le (non-)deref des symlinks passes en argument). */
+	stat_operands(ls.operands, ls.opts.list);
 	return (ls);
 }
 
