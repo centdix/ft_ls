@@ -268,6 +268,8 @@ void	ft_print_long_list(t_list *entries, int show_total)
 	unsigned long	blocks;
 	char			*nbr;
 
+	/* 1re passe : largeurs de colonnes + cumul des blocs (alignement avant
+	   toute impression). entries peut etre NULL -> dossier vide, "total 0". */
 	w = (t_widths){0, 0, 0, 0, 0, 0};
 	blocks = 0;
 	cur = entries;
@@ -281,6 +283,7 @@ void	ft_print_long_list(t_list *entries, int show_total)
 	   rendu fait deborder les lignes device d'un caractere, comme GNU ls. */
 	if (w.major > 0 && w.major + 1 + w.minor > w.size)
 		w.size = w.major + 1 + w.minor;
+	/* st_blocks est en unites de 512 o ; ls affiche des blocs de 1 Ko -> /2. */
 	if (show_total)
 	{
 		nbr = nbr_to_str(blocks / 2);

@@ -40,6 +40,7 @@ int	ft_sort_list(t_list *lst, int by_time, int rev)
 	if (!lst)
 		return (0);
 	by = by_time ? TIME : NAME;
+	/* tri a bulles : stable et suffisant vu la taille d'un dossier. */
 	swapped = 1;
 	while (swapped)
 	{
@@ -48,6 +49,7 @@ int	ft_sort_list(t_list *lst, int by_time, int rev)
 		while (cur->next)
 		{
 			cmp = cmp_files(cur->content, cur->next->content, by);
+			/* inverser le signe (pas la liste) preserve l'ordre des ex-aequo. */
 			if (rev)
 				cmp = -cmp;
 			if (cmp > 0)
@@ -69,11 +71,13 @@ static int	cmp_paths(t_path *a, t_path *b, int by_time, int rev)
 {
 	int	cmp;
 
+	/* groupage type (fichiers < dossiers) resolu AVANT -r -> jamais inverse. */
 	if (a->type != b->type)
 		return ((int)a->type - (int)b->type);
 	cmp = 0;
 	if (by_time)
 		cmp = cmp_mtime(&a->st, &b->st);
+	/* egalite de date (ou pas de -t) -> departage stable par le nom. */
 	if (cmp == 0)
 		cmp = ft_strncmp(a->path, b->path, ft_strlen(a->path) + 1);
 	if (rev)

@@ -26,6 +26,7 @@ t_list	*ft_extract_entries(DIR *dir, char *path, int all)
 	entries = NULL;
 	while ((entry = readdir(dir)) != NULL)
 	{
+		/* fichiers caches (commencant par '.') : seulement avec -a. */
 		if (!all && entry->d_name[0] == '.')
 			continue ;
 		file = malloc(sizeof(t_file));
@@ -33,6 +34,7 @@ t_list	*ft_extract_entries(DIR *dir, char *path, int all)
 			return (NULL);
 		file->name = ft_strdup(entry->d_name);
 		file->path = path_join(path, entry->d_name);
+		/* lstat (pas stat) : on decrit le lien lui-meme, pas sa cible. */
 		lstat(file->path, &file->st);
 		ft_lstadd_back(&entries, ft_lstnew(file));
 	}
@@ -88,6 +90,8 @@ void	ft_list_file_operands(t_ls *ls, int *printed)
 	node = ls->operands;
 	while (node)
 	{
+		/* on convertit les operandes-fichiers en t_file pour reutiliser les
+		   memes afficheurs que le contenu des dossiers (alignement -l inclus). */
 		op = node->content;
 		if (op->staterr == 0 && op->type == PATH_FILE)
 		{
@@ -101,6 +105,7 @@ void	ft_list_file_operands(t_ls *ls, int *printed)
 	}
 	if (!files)
 		return ;
+	/* 0 = pas de ligne "total" : elle n'apparait que pour un contenu de dossier. */
 	if (ls->opts.list)
 		ft_print_long_list(files, 0);
 	else
@@ -144,12 +149,14 @@ int	ft_list_one_dir(char *path, t_opts *opts, int header, int *printed)
 		ls_error(path, "cannot open directory", errno);
 		return (1);
 	}
+	/* ligne vide separatrice si un bloc a deja ete imprime avant celui-ci. */
 	if (*printed)
 		ft_printf("\n");
 	if (header)
 		ft_printf("%s:\n", path);
 	entries = ft_extract_entries(dir, path, opts->all);
 	ft_sort_list(entries, opts->time, opts->rev);
+	/* 1 = imprimer "total" : c'est le contenu d'un dossier. */
 	if (opts->list)
 		ft_print_long_list(entries, 1);
 	else
@@ -159,6 +166,9 @@ int	ft_list_one_dir(char *path, t_opts *opts, int header, int *printed)
 	while (opts->rec && cur)
 	{
 		file = cur->content;
+		/* on ne redescend que dans les vrais sous-dossiers ; ignorer "." et
+		   ".." evite la recursion infinie (et les symlinks ne sont pas des
+		   dossiers via lstat, donc pas suivis). */
 		if (S_ISDIR(file->st.st_mode) && ft_strncmp(file->name, ".", 2) != 0
 			&& ft_strncmp(file->name, "..", 3) != 0)
 			ft_list_one_dir(file->path, opts, 1, printed);
