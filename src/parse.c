@@ -3,26 +3,31 @@
 
 #include "ft_ls.h"
 
-/* Erreur d'option facon GNU ls sur stderr, puis sortie en 2 (aucun listing). */
+/* Erreur d'option sur stderr, puis sortie (aucun listing). Le texte de la 2e
+   ligne et le code retour different GNU/BSD (cf. OPT_HELP / RC_ERR). */
 static void	option_error_exit(void)
 {
-	ft_putstr_fd("Try 'ls --help' for more information.\n", 2);
-	exit(2);
+	ft_putstr_fd(OPT_HELP, 2);
+	exit(RC_ERR);
 }
 
 static void	invalid_short_option(char c)
 {
-	ft_putstr_fd("ls: invalid option -- '", 2);
+	ft_putstr_fd("ls: invalid option -- ", 2);
+	ft_putstr_fd(OPT_SQ1, 2);
 	ft_putchar_fd(c, 2);
-	ft_putstr_fd("'\n", 2);
+	ft_putstr_fd(OPT_SQ2, 2);
+	ft_putstr_fd("\n", 2);
 	option_error_exit();
 }
 
 static void	unrecognized_long_option(char *arg)
 {
-	ft_putstr_fd("ls: unrecognized option '", 2);
+	ft_putstr_fd("ls: unrecognized option ", 2);
+	ft_putstr_fd(OPT_LQ1, 2);
 	ft_putstr_fd(arg, 2);
-	ft_putstr_fd("'\n", 2);
+	ft_putstr_fd(OPT_LQ2, 2);
+	ft_putstr_fd("\n", 2);
 	option_error_exit();
 }
 

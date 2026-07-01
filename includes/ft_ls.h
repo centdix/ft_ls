@@ -42,6 +42,20 @@
 #  define COL_GAP "  "
 /* BSD ls -R : pas d'en-tete "chemin:" pour un dossier-operande unique. */
 #  define REC_FORCES_HEADER 0
+/* BSD ls : toute erreur (argument, option, ouverture) -> code retour 1. */
+#  define RC_ERR 1
+/* BSD ls formate les erreurs "ls: <chemin>: <err>" (sans motif ni quotes). */
+#  define ERR_REASON(r) ((void)(r))
+#  define ERR_Q1 ""
+#  define ERR_Q2 ": "
+/* BSD ls : option courte sans quotes, option longue en `back-quote', et une
+   ligne "usage:" (au lieu du "Try 'ls --help'" de GNU). */
+#  define OPT_SQ1 ""
+#  define OPT_SQ2 ""
+#  define OPT_LQ1 "`"
+#  define OPT_LQ2 "'"
+#  define OPT_HELP "usage: ls [-@ABCFGHILOPRSTUWabcdefghiklmnopqrstuvwxy1%,]"\
+	" [--color=when] [-D format] [file ...]\n"
 # else
 #  include <sys/sysmacros.h> /* major, minor sous glibc                 */
 #  define ST_ATIM_S(st)  ((st).st_atim.tv_sec)
@@ -56,6 +70,18 @@
 #  define COL_GAP " "
 /* GNU ls -R : en-tete "chemin:" meme pour un dossier-operande unique. */
 #  define REC_FORCES_HEADER 1
+/* GNU ls : erreur d'argument / d'option -> code retour 2 (sous-dossier -> 1). */
+#  define RC_ERR 2
+/* GNU ls formate "ls: <motif> '<chemin>': <err>". */
+#  define ERR_REASON(r) ft_putstr_fd((r), 2)
+#  define ERR_Q1 " '"
+#  define ERR_Q2 "': "
+/* GNU ls : option courte/longue en 'simple-quotes' + "Try 'ls --help'". */
+#  define OPT_SQ1 "'"
+#  define OPT_SQ2 "'"
+#  define OPT_LQ1 "'"
+#  define OPT_LQ2 "'"
+#  define OPT_HELP "Try 'ls --help' for more information.\n"
 # endif
 
 /* Existence d'un attribut etendu SANS suivre les symlinks (>=0 s'il existe).

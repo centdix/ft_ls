@@ -78,6 +78,13 @@ macros `#ifdef __APPLE__` dans `includes/ft_ls.h` :
 - **En-tête `-R` d'un dossier-opérande unique** : macro `REC_FORCES_HEADER` →
   0 (BSD n'imprime pas de header `chemin:` pour un seul dossier) vs 1 (GNU le
   fait dès `-R`). Utilisée dans `main.c` (`show_header`).
+- **Gestion d'erreur (code retour + messages)** : macros `RC_ERR` (BSD 1 /
+  GNU 2), `ERR_REASON`/`ERR_Q1`/`ERR_Q2` (format `ls: <chemin>: <err>` en BSD
+  vs `ls: <motif> '<chemin>': <err>` en GNU), et `OPT_SQ1/2`, `OPT_LQ1/2`,
+  `OPT_HELP` (message d'option invalide + 2ᵉ ligne `usage:` BSD / `Try 'ls
+  --help'` GNU). Dans `list.c` (`ls_error`), `parse.c` (erreurs d'option),
+  `main.c`. ⚠️ La chaîne `usage:` de `OPT_HELP` (BSD) dépend de la version de
+  macOS — à revérifier si la machine d'éval diffère.
 
 ### Validation Mac 2026-07-01 (compilé, comparé à `/bin/ls` BSD, `LC_ALL=C`)
 - `make` clean (`-Wall -Wextra -Werror`, 0 warning) : `st_*timespec`,
@@ -85,6 +92,8 @@ macros `#ifdef __APPLE__` dans `includes/ft_ls.h` :
 - `ls`, `-a`, `-r`, `-t`, `-1`, `-rt`, `-R`, `-aR` : **identiques** au BSD ls.
 - `-l`, `-la`, `-lR` : **identiques** au BSD ls une fois le marqueur `@` retiré
   (padding parfait après le fix `COL_GAP`).
+- **Erreurs** (`nexiste_pas`, `-Z`, `--badopt`, permission refusée) : message
+  **et** code retour **identiques** au BSD ls (fix gestion d'erreur OS-conditionnelle).
 
 ⚠️ **Limitation restante — marqueur `@`** : sur macOS, quasi tous les fichiers
 portent `com.apple.provenance` (xattr ré-ajouté par l'OS, non supprimable via

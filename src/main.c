@@ -13,11 +13,11 @@ int	main(int argc, char **argv)
 	int		lvl;
 
 	ls = ft_parse_args(argc, argv);
-	/* ls emet les erreurs d'acces dans l'ordre d'argv -> avant tout tri.
-	   Une erreur sur un argument est "grave" pour ls -> code retour 2. */
+	/* ls emet les erreurs d'acces dans l'ordre d'argv -> avant tout tri. Une
+	   erreur d'argument est "grave" -> RC_ERR (GNU: 2, BSD/mac: 1). */
 	err = 0;
 	if (ft_print_access_errors(ls.operands))
-		err = 2;
+		err = RC_ERR;
 	ft_sort_paths(ls.operands, &ls.opts);
 	/* printed : a-t-on deja ecrit qqch ? sert a inserer la ligne vide
 	   separatrice entre deux blocs (fichiers, puis chaque dossier). */
@@ -39,7 +39,7 @@ int	main(int argc, char **argv)
 
 		/* fichiers deja traites ci-dessus ; operandes en erreur deja
 		   signales -> ici on ne developpe que les dossiers valides. On garde
-		   le niveau d'erreur le plus grave (is_arg=1 -> echec operande = 2). */
+		   le niveau d'erreur le plus grave (is_arg=1 -> echec = RC_ERR). */
 		if (operand->staterr == 0 && operand->type == PATH_DIR)
 		{
 			lvl = ft_list_one_dir(operand->path, &ls.opts, show_header,
@@ -50,6 +50,7 @@ int	main(int argc, char **argv)
 		node = node->next;
 	}
 	ft_lstclear(&ls.operands, ft_free_path);
-	/* code retour facon ls : 2 (erreur argument), 1 (erreur sous-dossier), 0. */
+	/* code retour facon ls : RC_ERR (erreur argument ; GNU 2 / BSD 1),
+	   1 (erreur sous-dossier en recursion), 0 sinon. */
 	return (err);
 }

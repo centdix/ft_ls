@@ -22,10 +22,10 @@ static char	*path_join(char *dir, char *name)
 static void	ls_error(char *path, char *reason, int err)
 {
 	ft_putstr_fd("ls: ", 2);
-	ft_putstr_fd(reason, 2);
-	ft_putstr_fd(" '", 2);
+	ERR_REASON(reason);
+	ft_putstr_fd(ERR_Q1, 2);
 	ft_putstr_fd(path, 2);
-	ft_putstr_fd("': ", 2);
+	ft_putstr_fd(ERR_Q2, 2);
 	ft_putstr_fd(strerror(err), 2);
 	ft_putstr_fd("\n", 2);
 }
@@ -243,8 +243,8 @@ int	ft_print_access_errors(t_list *paths)
 
 /* Liste un dossier : separateur + en-tete eventuel + contenu trie, puis
    redescend dans chaque sous-dossier si -R. Renvoie le niveau d'erreur facon
-   ls (0 = ok) ; is_arg distingue un operande (echec -> 2) d'un sous-dossier
-   de recursion (echec -> 1). Le max des erreurs remonte a l'appelant. */
+   ls (0 = ok) ; is_arg distingue un operande (echec -> RC_ERR, GNU 2 / BSD 1)
+   d'un sous-dossier de recursion (echec -> 1). Le max remonte a l'appelant. */
 int	ft_list_one_dir(char *path, t_opts *opts, int header, int *printed,
 	int is_arg)
 {
@@ -258,7 +258,7 @@ int	ft_list_one_dir(char *path, t_opts *opts, int header, int *printed,
 	if (!dir)
 	{
 		ls_error(path, "cannot open directory", errno);
-		return (is_arg ? 2 : 1);
+		return (is_arg ? RC_ERR : 1);
 	}
 	/* ligne vide separatrice si un bloc a deja ete imprime avant celui-ci. */
 	if (*printed)
