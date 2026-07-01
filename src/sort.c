@@ -3,44 +3,76 @@
 
 #include "ft_ls.h"
 
-/* Tri -t facon ls : plus recent d'abord, depart a la nanoseconde. */
-static int	cmp_mtime(struct stat *a, struct stat *b)
+/* Champ temporel actif : mtime (defaut), atime (-u) ou ctime (-c). */
+time_t	ft_pick_time(struct stat *st, t_timek tk)
 {
-	if (a->st_mtim.tv_sec != b->st_mtim.tv_sec)
-		return (a->st_mtim.tv_sec > b->st_mtim.tv_sec ? -1 : 1);
-	if (a->st_mtim.tv_nsec != b->st_mtim.tv_nsec)
-		return (a->st_mtim.tv_nsec > b->st_mtim.tv_nsec ? -1 : 1);
+	if (tk == TK_ATIME)
+		return (st->st_atim.tv_sec);
+	if (tk == TK_CTIME)
+		return (st->st_ctim.tv_sec);
+	return (st->st_mtim.tv_sec);
+}
+
+/* Nanosecondes du champ temporel actif (depart de -t a la nanoseconde). */
+static long	pick_nsec(struct stat *st, t_timek tk)
+{
+	if (tk == TK_ATIME)
+		return (st->st_atim.tv_nsec);
+	if (tk == TK_CTIME)
+		return (st->st_ctim.tv_nsec);
+	return (st->st_mtim.tv_nsec);
+}
+
+/* Tri -t/-u/-c facon ls : plus recent d'abord, depart a la nanoseconde. */
+static int	cmp_time(struct stat *a, struct stat *b, t_timek tk)
+{
+	time_t	ta;
+	time_t	tb;
+
+	ta = ft_pick_time(a, tk);
+	tb = ft_pick_time(b, tk);
+	if (ta != tb)
+		return (ta > tb ? -1 : 1);
+	if (pick_nsec(a, tk) != pick_nsec(b, tk))
+		return (pick_nsec(a, tk) > pick_nsec(b, tk) ? -1 : 1);
 	return (0);
 }
 
-/* Compare deux entrees selon la cle active ; -t departage par date puis,
-   a egalite exacte, retombe sur le nom. Le -r est applique par l'appelant. */
-static int	cmp_files(t_file *a, t_file *b, t_sort_by by)
+/* Tri -S : plus gros d'abord. */
+static int	cmp_size(struct stat *a, struct stat *b)
 {
-	int	time_cmp;
+	if (a->st_size != b->st_size)
+		return (a->st_size > b->st_size ? -1 : 1);
+	return (0);
+}
 
-	if (by == TIME)
-	{
-		time_cmp = cmp_mtime(&a->st, &b->st);
-		if (time_cmp != 0)
-			return (time_cmp);
-	}
+/* Compare deux entrees selon la cle active ; a egalite on retombe sur le nom.
+   Le -r est applique par l'appelant. */
+static int	cmp_files(t_file *a, t_file *b, t_opts *opts)
+{
+	int	c;
+
+	c = 0;
+	if (opts->sort == SORT_TIME)
+		c = cmp_time(&a->st, &b->st, opts->timek);
+	else if (opts->sort == SORT_SIZE)
+		c = cmp_size(&a->st, &b->st);
+	if (c != 0)
+		return (c);
 	return (ft_strncmp(a->name, b->name, ft_strlen(a->name) + 1));
 }
 
-/* Tri a bulles : on echange le contenu des noeuds, pas les noeuds eux-memes. */
-int	ft_sort_list(t_list *lst, int by_time, int rev)
+/* Tri a bulles : on echange le contenu des noeuds, pas les noeuds eux-memes.
+   -f (SORT_NONE) conserve l'ordre du readdir (aucun tri). */
+int	ft_sort_list(t_list *lst, t_opts *opts)
 {
-	t_sort_by	by;
-	t_list		*cur;
-	void		*swap;
-	int			cmp;
-	int			swapped;
+	t_list	*cur;
+	void	*swap;
+	int		cmp;
+	int		swapped;
 
-	if (!lst)
+	if (!lst || opts->sort == SORT_NONE)
 		return (0);
-	by = by_time ? TIME : NAME;
-	/* tri a bulles : stable et suffisant vu la taille d'un dossier. */
 	swapped = 1;
 	while (swapped)
 	{
@@ -48,9 +80,8 @@ int	ft_sort_list(t_list *lst, int by_time, int rev)
 		cur = lst;
 		while (cur->next)
 		{
-			cmp = cmp_files(cur->content, cur->next->content, by);
-			/* inverser le signe (pas la liste) preserve l'ordre des ex-aequo. */
-			if (rev)
+			cmp = cmp_files(cur->content, cur->next->content, opts);
+			if (opts->rev)
 				cmp = -cmp;
 			if (cmp > 0)
 			{
@@ -66,32 +97,34 @@ int	ft_sort_list(t_list *lst, int by_time, int rev)
 }
 
 /* Ordre des operandes facon ls : fichiers avant dossiers (groupage jamais
-   inverse par -r), puis cle active (nom, ou date si -t) dans chaque groupe. */
-static int	cmp_paths(t_path *a, t_path *b, int by_time, int rev)
+   inverse par -r), puis cle active dans chaque groupe. En -d, pas de groupage
+   (les dossiers sont traites comme des entrees ordinaires). */
+static int	cmp_paths(t_path *a, t_path *b, t_opts *opts)
 {
 	int	cmp;
 
 	/* groupage type (fichiers < dossiers) resolu AVANT -r -> jamais inverse. */
-	if (a->type != b->type)
+	if (!opts->dironly && a->type != b->type)
 		return ((int)a->type - (int)b->type);
 	cmp = 0;
-	if (by_time)
-		cmp = cmp_mtime(&a->st, &b->st);
-	/* egalite de date (ou pas de -t) -> departage stable par le nom. */
+	if (opts->sort == SORT_TIME)
+		cmp = cmp_time(&a->st, &b->st, opts->timek);
+	else if (opts->sort == SORT_SIZE)
+		cmp = cmp_size(&a->st, &b->st);
 	if (cmp == 0)
 		cmp = ft_strncmp(a->path, b->path, ft_strlen(a->path) + 1);
-	if (rev)
+	if (opts->rev)
 		cmp = -cmp;
 	return (cmp);
 }
 
-void	ft_sort_paths(t_list *paths, int by_time, int rev)
+void	ft_sort_paths(t_list *paths, t_opts *opts)
 {
 	t_list	*cur;
 	void	*swap;
 	int		swapped;
 
-	if (!paths)
+	if (!paths || opts->sort == SORT_NONE)
 		return ;
 	swapped = 1;
 	while (swapped)
@@ -100,7 +133,7 @@ void	ft_sort_paths(t_list *paths, int by_time, int rev)
 		cur = paths;
 		while (cur->next)
 		{
-			if (cmp_paths(cur->content, cur->next->content, by_time, rev) > 0)
+			if (cmp_paths(cur->content, cur->next->content, opts) > 0)
 			{
 				swap = cur->content;
 				cur->content = cur->next->content;

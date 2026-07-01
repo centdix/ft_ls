@@ -17,7 +17,21 @@ static char	*path_join(char *dir, char *name)
 	return (res);
 }
 
-t_list	*ft_extract_entries(DIR *dir, char *path, int all)
+/* Faut-il afficher cette entree ? -a : tout ; -A : tout sauf "." et ".." ;
+   defaut : rien de ce qui commence par '.'. */
+static int	show_entry(char *name, t_opts *opts)
+{
+	if (name[0] != '.')
+		return (1);
+	if (opts->all)
+		return (1);
+	if (opts->almost && ft_strncmp(name, ".", 2) != 0
+		&& ft_strncmp(name, "..", 3) != 0)
+		return (1);
+	return (0);
+}
+
+t_list	*ft_extract_entries(DIR *dir, char *path, t_opts *opts)
 {
 	t_list			*entries;
 	struct dirent	*entry;
@@ -26,8 +40,7 @@ t_list	*ft_extract_entries(DIR *dir, char *path, int all)
 	entries = NULL;
 	while ((entry = readdir(dir)) != NULL)
 	{
-		/* fichiers caches (commencant par '.') : seulement avec -a. */
-		if (!all && entry->d_name[0] == '.')
+		if (!show_entry(entry->d_name, opts))
 			continue ;
 		file = malloc(sizeof(t_file));
 		if (!file)
@@ -43,19 +56,6 @@ t_list	*ft_extract_entries(DIR *dir, char *path, int all)
 		ft_lstadd_back(&entries, ft_lstnew(file));
 	}
 	return (entries);
-}
-
-int	ft_print_list(t_list *lst)
-{
-	t_file	*file;
-
-	while (lst)
-	{
-		file = lst->content;
-		ft_printf("%s\n", file->name);
-		lst = lst->next;
-	}
-	return (0);
 }
 
 void	ft_free_file(void *content)
@@ -112,54 +112,60 @@ static t_list	*collect_operand_files(t_list *operands)
 	return (all);
 }
 
-/* Y a-t-il au moins un operande non-dossier a afficher dans le bloc ? */
-static int	has_nondir(t_list *all)
+/* En -d chaque operande (dossier compris) est une entree a imprimer ; sinon
+   seuls les non-dossiers le sont ici (les dossiers sont listes a part). */
+static int	printable(t_file *f, t_opts *opts)
+{
+	return (opts->dironly || !S_ISDIR(f->st.st_mode));
+}
+
+/* Y a-t-il au moins une entree a afficher dans le bloc operandes ? */
+static int	has_printable(t_list *all, t_opts *opts)
 {
 	while (all)
 	{
-		if (!S_ISDIR(((t_file *)all->content)->st.st_mode))
+		if (printable(all->content, opts))
 			return (1);
 		all = all->next;
 	}
 	return (0);
 }
 
-/* Imprime le bloc des operandes non-dossiers, avec largeurs deja calculees
-   (sur l'ensemble des operandes). Les dossiers sont sautes ici. */
-static void	print_operand_files(t_list *all, int longfmt, t_widths *w)
+/* Imprime le bloc des operandes, largeurs deja calculees sur l'ensemble. */
+static void	print_operand_files(t_list *all, t_opts *opts, t_widths *w)
 {
 	t_file	*f;
 
 	while (all)
 	{
 		f = all->content;
-		if (!S_ISDIR(f->st.st_mode))
+		if (printable(f, opts))
 		{
-			if (longfmt)
-				ft_print_long_line_pub(f, w);
+			if (opts->list)
+				ft_print_long_line_pub(f, w, opts);
 			else
-				ft_printf("%s\n", f->name);
+				ft_print_short_line(f, w, opts);
 		}
 		all = all->next;
 	}
 }
 
-/* Operandes "fichiers" (non-dossiers) : ls les affiche groupes, avant les
-   dossiers, sans en-tete ni ligne "total". Alignement -l partage, calcule
-   sur l'ensemble des operandes (dossiers inclus) comme GNU. */
+/* Operandes affiches en bloc (avant les dossiers a developper), sans en-tete
+   ni ligne "total". Alignement calcule sur l'ensemble des operandes (dossiers
+   inclus) comme GNU. En -d, les dossiers-operandes sont eux aussi imprimes. */
 void	ft_list_file_operands(t_ls *ls, int *printed)
 {
 	t_list		*all;
 	t_widths	w;
 
 	all = collect_operand_files(ls->operands);
-	if (!has_nondir(all))
+	if (!has_printable(all, &ls->opts))
 	{
 		ft_lstclear(&all, ft_free_file);
 		return ;
 	}
 	ft_calc_widths(all, &w);
-	print_operand_files(all, ls->opts.list, &w);
+	print_operand_files(all, &ls->opts, &w);
 	*printed = 1;
 	ft_lstclear(&all, ft_free_file);
 }
@@ -208,13 +214,13 @@ int	ft_list_one_dir(char *path, t_opts *opts, int header, int *printed,
 		ft_printf("\n");
 	if (header)
 		ft_printf("%s:\n", path);
-	entries = ft_extract_entries(dir, path, opts->all);
-	ft_sort_list(entries, opts->time, opts->rev);
+	entries = ft_extract_entries(dir, path, opts);
+	ft_sort_list(entries, opts);
 	/* 1 = imprimer "total" : c'est le contenu d'un dossier. */
 	if (opts->list)
-		ft_print_long_list(entries, 1);
+		ft_print_long_list(entries, 1, opts);
 	else
-		ft_print_list(entries);
+		ft_print_list(entries, opts);
 	*printed = 1;
 	err = 0;
 	cur = entries;

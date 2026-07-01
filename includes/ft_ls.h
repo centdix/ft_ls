@@ -26,12 +26,24 @@
 # include <string.h>     /* strerror                               */
 # include <sys/xattr.h>  /* lgetxattr (bonus: marqueur ACL '+')    */
 
-/* Cle de tri active (le sens -r est gere a part, via opts->rev). */
+/* Cle de tri active (le sens -r est gere a part, via opts->rev).
+   SORT_NONE = -f (ordre du readdir, pas de tri). */
 typedef enum e_sort_by
 {
-	NAME,
-	TIME,
+	SORT_NAME,
+	SORT_TIME,
+	SORT_SIZE,
+	SORT_NONE,
 }	t_sort_by;
+
+/* Champ temporel utilise par -l et le tri -t : mtime (defaut), atime (-u)
+   ou ctime (-c). */
+typedef enum e_timek
+{
+	TK_MTIME,
+	TK_ATIME,
+	TK_CTIME,
+}	t_timek;
 
 /* PATH_FILE/PATH_DIR (pas FILE/DIR, deja pris par <stdio.h> et <dirent.h>).
    Ordre PATH_FILE < PATH_DIR -> les fichiers passent avant les dossiers. */
@@ -61,11 +73,19 @@ typedef struct s_file
 /* Options de comportement (uniquement les flags de la ligne de commande). */
 typedef struct s_opts
 {
-	int	list;	/* -l : format long     */
-	int	rec;	/* -R : recursif        */
-	int	all;	/* -a : fichiers caches */
-	int	rev;	/* -r : ordre inverse   */
-	int	time;	/* -t : tri par date    */
+	int			list;		/* -l : format long                        */
+	int			rec;		/* -R : recursif                           */
+	int			all;		/* -a : fichiers caches (. et .. inclus)   */
+	int			almost;		/* -A : caches sauf . et ..                */
+	int			rev;		/* -r : ordre inverse                      */
+	int			dironly;	/* -d : les dossiers eux-memes, pas leur contenu */
+	int			one;		/* -1 : une entree par ligne (deja le cas) */
+	int			inode;		/* -i : numero d'inode                     */
+	int			slash;		/* -p : '/' apres les dossiers             */
+	int			noowner;	/* -g : -l sans la colonne proprietaire    */
+	int			nogroup;	/* -o : -l sans la colonne groupe          */
+	t_sort_by	sort;		/* cle de tri (-t, -S, -f)                 */
+	t_timek		timek;		/* champ temporel (-u, -c)                 */
 }	t_opts;
 
 /* Contexte complet : les flags + la liste des operandes (cibles) a lister. */
@@ -86,6 +106,7 @@ typedef struct s_widths
 	int	size;
 	int	major;
 	int	minor;
+	int	inode;	/* bonus -i : largeur de la colonne inode            */
 	int	aclcol;	/* bonus : 1 si une entree du bloc a un ACL/contexte */
 }	t_widths;
 
@@ -93,18 +114,20 @@ typedef struct s_widths
 t_ls	ft_parse_args(int argc, char **argv);
 void	ft_free_path(void *content);
 
-/* --- sort.c : tri des entrees et des operandes (by_time = -t, rev = -r) --- */
-int		ft_sort_list(t_list *lst, int by_time, int rev);
-void	ft_sort_paths(t_list *paths, int by_time, int rev);
+/* --- sort.c : tri des entrees et des operandes (cle + sens via opts) --- */
+int		ft_sort_list(t_list *lst, t_opts *opts);
+void	ft_sort_paths(t_list *paths, t_opts *opts);
+time_t	ft_pick_time(struct stat *st, t_timek tk);
 
 /* --- format.c : rendu du format long (-l) --- */
-void	ft_print_long_list(t_list *entries, int show_total);
+void	ft_print_long_list(t_list *entries, int show_total, t_opts *opts);
 void	ft_calc_widths(t_list *entries, t_widths *w);
-void	ft_print_long_line_pub(t_file *f, t_widths *w);
+void	ft_print_long_line_pub(t_file *f, t_widths *w, t_opts *opts);
+void	ft_print_short_line(t_file *f, t_widths *w, t_opts *opts);
 
 /* --- list.c : listing d'un dossier et erreurs --- */
-t_list	*ft_extract_entries(DIR *dir, char *path, int all);
-int		ft_print_list(t_list *lst);
+t_list	*ft_extract_entries(DIR *dir, char *path, t_opts *opts);
+int		ft_print_list(t_list *lst, t_opts *opts);
 void	ft_free_file(void *content);
 int		ft_print_access_errors(t_list *paths);
 int		ft_list_one_dir(char *path, t_opts *opts, int header, int *printed,

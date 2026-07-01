@@ -18,7 +18,7 @@ int	main(int argc, char **argv)
 	err = 0;
 	if (ft_print_access_errors(ls.operands))
 		err = 2;
-	ft_sort_paths(ls.operands, ls.opts.time, ls.opts.rev);
+	ft_sort_paths(ls.operands, &ls.opts);
 	/* printed : a-t-on deja ecrit qqch ? sert a inserer la ligne vide
 	   separatrice entre deux blocs (fichiers, puis chaque dossier). */
 	printed = 0;
@@ -27,8 +27,10 @@ int	main(int argc, char **argv)
 	/* ls affiche d'abord TOUS les operandes-fichiers (en bloc), puis les
 	   dossiers : on traite donc les fichiers avant la boucle. */
 	ft_list_file_operands(&ls, &printed);
+	/* -d : les dossiers-operandes ont ete imprimes comme entrees ci-dessus,
+	   on ne developpe donc pas leur contenu. */
 	node = ls.operands;
-	while (node)
+	while (node && !ls.opts.dironly)
 	{
 		t_path	*operand = node->content;
 

@@ -26,6 +26,48 @@ static void	unrecognized_long_option(char *arg)
 	option_error_exit();
 }
 
+/* Un flag = un effet. Les cles de tri (-t/-S/-f) s'ecrasent dans l'ordre de
+   lecture, comme ls. -g/-o impliquent le format long (-l). -f force -a et
+   desactive le tri (sans desactiver -l, conforme au ls actuel). */
+static int	set_flag(char c, t_opts *opts)
+{
+	if (c == 'l')
+		opts->list = 1;
+	else if (c == 'R')
+		opts->rec = 1;
+	else if (c == 'a')
+		(opts->all = 1, opts->almost = 0);
+	else if (c == 'A')
+		(opts->almost = 1, opts->all = 0);
+	else if (c == 'r')
+		opts->rev = 1;
+	else if (c == 't')
+		opts->sort = SORT_TIME;
+	else if (c == 'S')
+		opts->sort = SORT_SIZE;
+	else if (c == 'f')
+		(opts->all = 1, opts->almost = 0, opts->sort = SORT_NONE);
+	else if (c == 'd')
+		opts->dironly = 1;
+	else if (c == '1')
+		opts->one = 1;
+	else if (c == 'i')
+		opts->inode = 1;
+	else if (c == 'p')
+		opts->slash = 1;
+	else if (c == 'g')
+		(opts->list = 1, opts->noowner = 1);
+	else if (c == 'o')
+		(opts->list = 1, opts->nogroup = 1);
+	else if (c == 'u')
+		opts->timek = TK_ATIME;
+	else if (c == 'c')
+		opts->timek = TK_CTIME;
+	else
+		return (0);
+	return (1);
+}
+
 static void	parse_flags(char *arg, t_opts *opts)
 {
 	int	i;
@@ -33,17 +75,7 @@ static void	parse_flags(char *arg, t_opts *opts)
 	i = 1;
 	while (arg[i])
 	{
-		if (arg[i] == 'l')
-			opts->list = 1;
-		else if (arg[i] == 'R')
-			opts->rec = 1;
-		else if (arg[i] == 'a')
-			opts->all = 1;
-		else if (arg[i] == 'r')
-			opts->rev = 1;
-		else if (arg[i] == 't')
-			opts->time = 1;
-		else
+		if (!set_flag(arg[i], opts))
 			invalid_short_option(arg[i]);
 		i++;
 	}
@@ -66,16 +98,16 @@ static t_path	*new_path(char *str)
 	return (op);
 }
 
-/* Renseigne st/type/staterr d'un operande facon ls. En format long (-l), un
-   symlink-argument N'EST PAS suivi (on affiche le lien) sauf slash final ;
-   sinon on suit le lien et, s'il est casse (stat KO), on retombe sur lstat
-   pour l'afficher quand meme (code retour 0, comme ls). */
-static void	stat_operand(t_path *op, int longfmt)
+/* Renseigne st/type/staterr d'un operande facon ls. Quand ls ne developpe pas
+   les symlinks-arguments (-l, -d ...), on N'EST PAS suivi (on affiche le lien)
+   sauf slash final ; sinon on suit le lien et, s'il est casse (stat KO), on
+   retombe sur lstat pour l'afficher quand meme (code retour 0, comme ls). */
+static void	stat_operand(t_path *op, int nofollow)
 {
 	size_t	len;
 
 	len = ft_strlen(op->path);
-	if (longfmt && len > 0 && op->path[len - 1] != '/')
+	if (nofollow && len > 0 && op->path[len - 1] != '/')
 	{
 		if (lstat(op->path, &op->st) != 0)
 			op->staterr = errno;
@@ -93,7 +125,7 @@ static void	stat_operand(t_path *op, int longfmt)
 }
 
 /* Passe de stat sur tous les operandes, une fois toutes les options connues. */
-static void	stat_operands(t_list *ops, int longfmt)
+static void	stat_operands(t_list *ops, int nofollow)
 {
 	t_path	*op;
 
@@ -101,7 +133,7 @@ static void	stat_operands(t_list *ops, int longfmt)
 	{
 		op = ops->content;
 		if (op)
-			stat_operand(op, longfmt);
+			stat_operand(op, nofollow);
 		ops = ops->next;
 	}
 }
@@ -148,12 +180,16 @@ t_ls	ft_parse_args(int argc, char **argv)
 			add_operand(&ls.operands, argv[i]);
 		i++;
 	}
+	/* -u/-c sans -t trient par le temps choisi (atime/ctime), sauf en -l ou
+	   le tri reste par nom (facon ls). -S/-f gardent leur cle. */
+	if (ls.opts.timek != TK_MTIME && ls.opts.sort == SORT_NAME && !ls.opts.list)
+		ls.opts.sort = SORT_TIME;
 	/* aucun operande fourni -> ls liste le repertoire courant. */
 	if (!ls.operands)
 		add_operand(&ls.operands, ".");
-	/* stat differe : toutes les options sont maintenant connues (-l influe
-	   sur le (non-)deref des symlinks passes en argument). */
-	stat_operands(ls.operands, ls.opts.list);
+	/* stat differe : toutes les options sont maintenant connues (-l et -d
+	   influent sur le (non-)deref des symlinks passes en argument). */
+	stat_operands(ls.operands, ls.opts.list || ls.opts.dironly);
 	return (ls);
 }
 

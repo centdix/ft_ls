@@ -194,6 +194,10 @@ static void	update_widths(t_file *f, t_widths *w)
 	f->acl = acl_char(f);
 	if (f->acl != ' ')
 		w->aclcol = 1;
+	s = nbr_to_str(f->st.st_ino);
+	if ((int)ft_strlen(s) > w->inode)
+		w->inode = ft_strlen(s);
+	free(s);
 	s = nbr_to_str(f->st.st_nlink);
 	if ((int)ft_strlen(s) > w->links)
 		w->links = ft_strlen(s);
@@ -248,22 +252,60 @@ static void	print_symlink_target(t_file *f)
 	ft_printf(" -> %s", target);
 }
 
+/* Prefixe -i : numero d'inode aligne a droite, suivi d'un espace. */
+static void	print_inode_prefix(t_file *f, t_widths *w, t_opts *opts)
+{
+	char	*nbr;
+
+	if (!opts->inode)
+		return ;
+	nbr = nbr_to_str(f->st.st_ino);
+	print_right(nbr, w->inode);
+	free(nbr);
+	ft_printf(" ");
+}
+
+/* Nom de l'entree, avec '/' final pour un dossier si -p. */
+static void	print_name(t_file *f, t_opts *opts)
+{
+	ft_printf("%s", f->name);
+	if (opts->slash && S_ISDIR(f->st.st_mode))
+		ft_printf("/");
+}
+
+/* Colonnes proprietaire/groupe, sauf si -g (pas d'owner) / -o (pas de groupe). */
+static void	print_owner_group(t_file *f, t_widths *w, t_opts *opts)
+{
+	char	*owner;
+	char	*group;
+
+	if (!opts->noowner)
+	{
+		owner = owner_name(f->st.st_uid);
+		print_left(owner, w->owner);
+		ft_printf(" ");
+		free(owner);
+	}
+	if (!opts->nogroup)
+	{
+		group = group_name(f->st.st_gid);
+		print_left(group, w->group);
+		ft_printf(" ");
+		free(group);
+	}
+}
+
 /* Imprime une ligne du format long, colonnes alignees sur w. */
-static void	print_long_line(t_file *f, t_widths *w)
+static void	print_long_line(t_file *f, t_widths *w, t_opts *opts)
 {
 	char	perms[11];
 	char	date[13];
-	char	*owner;
-	char	*group;
 	char	*nbr;
 
 	mode_to_str(f->st.st_mode, perms);
-	time_str(f->st.st_mtim.tv_sec, date);
-	owner = owner_name(f->st.st_uid);
-	group = group_name(f->st.st_gid);
+	time_str(ft_pick_time(&f->st, opts->timek), date);
+	print_inode_prefix(f, w, opts);
 	ft_printf("%s", perms);
-	/* bonus : indicateur ACL/contexte, uniquement si le bloc en reserve la
-	   colonne (au moins une entree concernee) -> aligne comme GNU. */
 	if (w->aclcol)
 		ft_printf("%c", f->acl);
 	ft_printf(" ");
@@ -271,17 +313,21 @@ static void	print_long_line(t_file *f, t_widths *w)
 	print_right(nbr, w->links);
 	free(nbr);
 	ft_printf(" ");
-	print_left(owner, w->owner);
-	ft_printf(" ");
-	print_left(group, w->group);
-	ft_printf(" ");
+	print_owner_group(f, w, opts);
 	print_size_field(f, w);
-	ft_printf(" %s %s", date, f->name);
+	ft_printf(" %s ", date);
+	print_name(f, opts);
 	if (S_ISLNK(f->st.st_mode))
 		print_symlink_target(f);
 	ft_printf("\n");
-	free(owner);
-	free(group);
+}
+
+/* Ligne du format court : (inode) + nom (+ '/'). */
+void	ft_print_short_line(t_file *f, t_widths *w, t_opts *opts)
+{
+	print_inode_prefix(f, w, opts);
+	print_name(f, opts);
+	ft_printf("\n");
 }
 
 /* Calcule les largeurs de colonnes du -l sur l'ensemble des entrees fournies
@@ -289,7 +335,7 @@ static void	print_long_line(t_file *f, t_widths *w)
    "major, minor" en entier : major + ", " (2 car.) + minor, comme GNU ls. */
 void	ft_calc_widths(t_list *entries, t_widths *w)
 {
-	*w = (t_widths){0, 0, 0, 0, 0, 0, 0};
+	*w = (t_widths){0, 0, 0, 0, 0, 0, 0, 0};
 	while (entries)
 	{
 		update_widths(entries->content, w);
@@ -313,15 +359,50 @@ static unsigned long	sum_blocks(t_list *entries)
 	return (blocks);
 }
 
+/* Largeur de la colonne inode pour le format court (pas besoin des autres). */
+static int	inode_width(t_list *lst)
+{
+	int		w;
+	char	*s;
+
+	w = 0;
+	while (lst)
+	{
+		s = nbr_to_str(((t_file *)lst->content)->st.st_ino);
+		if ((int)ft_strlen(s) > w)
+			w = ft_strlen(s);
+		free(s);
+		lst = lst->next;
+	}
+	return (w);
+}
+
+/* Format court (sans -l) : une entree par ligne, avec inode/'/' selon options.
+   Calcule sa propre largeur d'inode (pas d'acces ACL inutile ici). */
+int	ft_print_list(t_list *lst, t_opts *opts)
+{
+	t_widths	w;
+
+	w = (t_widths){0, 0, 0, 0, 0, 0, 0, 0};
+	if (opts->inode)
+		w.inode = inode_width(lst);
+	while (lst)
+	{
+		ft_print_short_line(lst->content, &w, opts);
+		lst = lst->next;
+	}
+	return (0);
+}
+
 /* Imprime une entree deja preparee avec des largeurs precalculees (utilise
    pour le bloc des operandes-fichiers, dont les largeurs incluent aussi les
    dossiers-operandes, facon GNU). */
-void	ft_print_long_line_pub(t_file *f, t_widths *w)
+void	ft_print_long_line_pub(t_file *f, t_widths *w, t_opts *opts)
 {
-	print_long_line(f, w);
+	print_long_line(f, w, opts);
 }
 
-void	ft_print_long_list(t_list *entries, int show_total)
+void	ft_print_long_list(t_list *entries, int show_total, t_opts *opts)
 {
 	t_widths	w;
 	t_list		*cur;
@@ -339,7 +420,7 @@ void	ft_print_long_list(t_list *entries, int show_total)
 	cur = entries;
 	while (cur)
 	{
-		print_long_line(cur->content, &w);
+		print_long_line(cur->content, &w, opts);
 		cur = cur->next;
 	}
 }
