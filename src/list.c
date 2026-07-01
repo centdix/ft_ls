@@ -31,7 +31,10 @@ t_list	*ft_extract_entries(DIR *dir, char *path, int all)
 			continue ;
 		file = malloc(sizeof(t_file));
 		if (!file)
+		{
+			ft_lstclear(&entries, ft_free_file);
 			return (NULL);
+		}
 		file->name = ft_strdup(entry->d_name);
 		file->path = path_join(path, entry->d_name);
 		/* lstat (pas stat) : on decrit le lien lui-meme, pas sa cible. */
@@ -96,10 +99,13 @@ void	ft_list_file_operands(t_ls *ls, int *printed)
 		if (op->staterr == 0 && op->type == PATH_FILE)
 		{
 			f = malloc(sizeof(t_file));
-			f->name = ft_strdup(op->path);
-			f->path = ft_strdup(op->path);
-			f->st = op->st;
-			ft_lstadd_back(&files, ft_lstnew(f));
+			if (f)
+			{
+				f->name = ft_strdup(op->path);
+				f->path = ft_strdup(op->path);
+				f->st = op->st;
+				ft_lstadd_back(&files, ft_lstnew(f));
+			}
 		}
 		node = node->next;
 	}
@@ -135,19 +141,23 @@ int	ft_print_access_errors(t_list *paths)
 }
 
 /* Liste un dossier : separateur + en-tete eventuel + contenu trie, puis
-   redescend dans chaque sous-dossier si -R. */
-int	ft_list_one_dir(char *path, t_opts *opts, int header, int *printed)
+   redescend dans chaque sous-dossier si -R. Renvoie le niveau d'erreur facon
+   ls (0 = ok) ; is_arg distingue un operande (echec -> 2) d'un sous-dossier
+   de recursion (echec -> 1). Le max des erreurs remonte a l'appelant. */
+int	ft_list_one_dir(char *path, t_opts *opts, int header, int *printed,
+	int is_arg)
 {
 	DIR		*dir;
 	t_list	*entries;
 	t_list	*cur;
 	t_file	*file;
+	int		err;
 
 	dir = opendir(path);
 	if (!dir)
 	{
 		ls_error(path, "cannot open directory", errno);
-		return (1);
+		return (is_arg ? 2 : 1);
 	}
 	/* ligne vide separatrice si un bloc a deja ete imprime avant celui-ci. */
 	if (*printed)
@@ -162,19 +172,22 @@ int	ft_list_one_dir(char *path, t_opts *opts, int header, int *printed)
 	else
 		ft_print_list(entries);
 	*printed = 1;
+	err = 0;
 	cur = entries;
 	while (opts->rec && cur)
 	{
 		file = cur->content;
 		/* on ne redescend que dans les vrais sous-dossiers ; ignorer "." et
 		   ".." evite la recursion infinie (et les symlinks ne sont pas des
-		   dossiers via lstat, donc pas suivis). */
+		   dossiers via lstat, donc pas suivis). Un echec de sous-dossier
+		   remonte en niveau 1, cumule via le max. */
 		if (S_ISDIR(file->st.st_mode) && ft_strncmp(file->name, ".", 2) != 0
-			&& ft_strncmp(file->name, "..", 3) != 0)
-			ft_list_one_dir(file->path, opts, 1, printed);
+			&& ft_strncmp(file->name, "..", 3) != 0
+			&& ft_list_one_dir(file->path, opts, 1, printed, 0) > err)
+			err = 1;
 		cur = cur->next;
 	}
 	ft_lstclear(&entries, ft_free_file);
 	closedir(dir);
-	return (0);
+	return (err);
 }

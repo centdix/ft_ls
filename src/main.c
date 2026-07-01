@@ -10,10 +10,14 @@ int	main(int argc, char **argv)
 	int		printed;
 	int		show_header;
 	int		err;
+	int		lvl;
 
 	ls = ft_parse_args(argc, argv);
-	/* ls emet les erreurs d'acces dans l'ordre d'argv -> avant tout tri. */
-	err = ft_print_access_errors(ls.operands);
+	/* ls emet les erreurs d'acces dans l'ordre d'argv -> avant tout tri.
+	   Une erreur sur un argument est "grave" pour ls -> code retour 2. */
+	err = 0;
+	if (ft_print_access_errors(ls.operands))
+		err = 2;
 	ft_sort_paths(ls.operands, ls.opts.time, ls.opts.rev);
 	/* printed : a-t-on deja ecrit qqch ? sert a inserer la ligne vide
 	   separatrice entre deux blocs (fichiers, puis chaque dossier). */
@@ -29,15 +33,18 @@ int	main(int argc, char **argv)
 		t_path	*operand = node->content;
 
 		/* fichiers deja traites ci-dessus ; operandes en erreur deja
-		   signales -> ici on ne developpe que les dossiers valides. */
+		   signales -> ici on ne developpe que les dossiers valides. On garde
+		   le niveau d'erreur le plus grave (is_arg=1 -> echec operande = 2). */
 		if (operand->staterr == 0 && operand->type == PATH_DIR)
 		{
-			if (ft_list_one_dir(operand->path, &ls.opts, show_header, &printed))
-				err = 1;
+			lvl = ft_list_one_dir(operand->path, &ls.opts, show_header,
+					&printed, 1);
+			if (lvl > err)
+				err = lvl;
 		}
 		node = node->next;
 	}
 	ft_lstclear(&ls.operands, ft_free_path);
-	/* code retour facon ls : 2 si une erreur a eu lieu, 0 sinon. */
-	return (err ? 2 : 0);
+	/* code retour facon ls : 2 (erreur argument), 1 (erreur sous-dossier), 0. */
+	return (err);
 }

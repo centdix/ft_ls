@@ -102,7 +102,8 @@ t_list	*ft_extract_entries(DIR *dir, char *path, int all);
 int		ft_print_list(t_list *lst);
 void	ft_free_file(void *content);
 int		ft_print_access_errors(t_list *paths);
-int		ft_list_one_dir(char *path, t_opts *opts, int header, int *printed);
+int		ft_list_one_dir(char *path, t_opts *opts, int header, int *printed,
+			int is_arg);
 void	ft_list_file_operands(t_ls *ls, int *printed);
 
 #endif
