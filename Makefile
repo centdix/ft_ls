@@ -50,4 +50,20 @@ fclean: clean
 
 re: fclean all
 
-.PHONY: all clean fclean re
+# Genere compile_commands.json pour clangd (indexation / go-to-definition).
+# Fichier propre a la machine (chemins absolus) -> ignore par git.
+db:
+	@root=$$(pwd); \
+	files=$$(ls src/*.c libft/*.c); \
+	printf '[\n' > compile_commands.json; \
+	first=1; \
+	for f in $$files; do \
+		if [ $$first -eq 0 ]; then printf ',\n' >> compile_commands.json; fi; \
+		first=0; \
+		printf '  {\n    "directory": "%s",\n    "command": "%s %s -c %s/%s",\n    "file": "%s/%s"\n  }' \
+			"$$root" "$(CC) $(CFLAGS)" "$(INC)" "$$root" "$$f" "$$root" "$$f" >> compile_commands.json; \
+	done; \
+	printf '\n]\n' >> compile_commands.json; \
+	echo "compile_commands.json genere ($$(echo $$files | wc -w) fichiers)"
+
+.PHONY: all clean fclean re db

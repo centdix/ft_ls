@@ -1,56 +1,52 @@
-/* main.c — point d'entree : parse argv, signale les erreurs d'acces, trie les
-   operandes, puis affiche les fichiers avant les dossiers (cf. list.c). */
-
 #include "ft_ls.h"
 
-int	main(int argc, char **argv)
-{
-	t_ls	ls;
-	t_list	*node;
-	int		printed;
-	int		show_header;
-	int		err;
-	int		lvl;
+int main(int argc, char **argv) {
+  t_ls ls;
+  t_list *node;
+  int printed;
+  int show_header;
+  int err;
+  int lvl;
 
-	ls = ft_parse_args(argc, argv);
-	/* ls emet les erreurs d'acces dans l'ordre d'argv -> avant tout tri. Une
-	   erreur d'argument est "grave" -> RC_ERR (GNU: 2, BSD/mac: 1). */
-	err = 0;
-	if (ft_print_access_errors(ls.operands))
-		err = RC_ERR;
-	ft_sort_paths(ls.operands, &ls.opts);
-	/* printed : a-t-on deja ecrit qqch ? sert a inserer la ligne vide
-	   separatrice entre deux blocs (fichiers, puis chaque dossier). */
-	printed = 0;
-	/* ls ne prefixe "chemin:" que s'il y a plusieurs cibles (et, sous GNU
-	   seulement, des l'option -R meme pour une cible unique ; le BSD ls ne le
-	   fait pas pour un dossier-operande unique, cf. REC_FORCES_HEADER). */
-	show_header = (ft_lstsize(ls.operands) > 1
-			|| (ls.opts.rec && REC_FORCES_HEADER));
-	/* ls affiche d'abord TOUS les operandes-fichiers (en bloc), puis les
-	   dossiers : on traite donc les fichiers avant la boucle. */
-	ft_list_file_operands(&ls, &printed);
-	/* -d : les dossiers-operandes ont ete imprimes comme entrees ci-dessus,
-	   on ne developpe donc pas leur contenu. */
-	node = ls.operands;
-	while (node && !ls.opts.dironly)
-	{
-		t_path	*operand = node->content;
+  ls = ft_parse_args(argc, argv);
 
-		/* fichiers deja traites ci-dessus ; operandes en erreur deja
-		   signales -> ici on ne developpe que les dossiers valides. On garde
-		   le niveau d'erreur le plus grave (is_arg=1 -> echec = RC_ERR). */
-		if (operand->staterr == 0 && operand->type == PATH_DIR)
-		{
-			lvl = ft_list_one_dir(operand->path, &ls.opts, show_header,
-					&printed, 1);
-			if (lvl > err)
-				err = lvl;
-		}
-		node = node->next;
-	}
-	ft_lstclear(&ls.operands, ft_free_path);
-	/* code retour facon ls : RC_ERR (erreur argument ; GNU 2 / BSD 1),
-	   1 (erreur sous-dossier en recursion), 0 sinon. */
-	return (err);
+  // print access errors first
+  err = 0;
+  if (ft_print_access_errors(ls.operands))
+    err = RC_ERR;
+
+  // sort paths, files first then directories
+  ft_sort_paths(ls.operands, &ls.opts);
+
+  // used to insert the empty line separator between two blocks
+  printed = 0;
+
+  // direcory header is displayed if there are multiple targets or the -R option
+  // is used for a single target
+  show_header =
+      (ft_lstsize(ls.operands) > 1 || (ls.opts.rec && REC_FORCES_HEADER));
+
+  // print all files first, then directories
+  ft_list_file_operands(&ls, &printed);
+
+  // directories have been printed as entries above, so we don't develop their
+  // content
+  node = ls.operands;
+  while (node && !ls.opts.dironly) {
+    t_path *operand = node->content;
+
+    // here we only develop valid directories, everthing else has been printed
+    // above
+    if (operand->staterr == 0 && operand->type == PATH_DIR) {
+      lvl = ft_list_one_dir(operand->path, &ls.opts, show_header, &printed, 1);
+      if (lvl > err)
+        err = lvl;
+    }
+    node = node->next;
+  }
+  ft_lstclear(&ls.operands, ft_free_path);
+
+  // return code like ls: RC_ERR (argument error; GNU 2 / BSD 1), 1
+  // (subdirectory error in recursion), 0 otherwise
+  return (err);
 }

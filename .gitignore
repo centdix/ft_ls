@@ -5,3 +5,9 @@ ft_ls
 
 # OS
 .DS_Store
+
+# clangd / editor
+# .clangd is committed (portable). compile_commands.json is machine-specific
+# (absolute paths), generated locally via `make db`.
+compile_commands.json
+.cache/
